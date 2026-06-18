@@ -1,0 +1,6 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K7:25:27 AM [express] serving on port 5000
+7:25:35 AM [express] GET /api/auth/me 304 in 5ms :: {"authenticated":false}
