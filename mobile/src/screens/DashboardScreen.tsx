@@ -74,6 +74,8 @@ import { apiGet, apiPost, apiRequest } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import type { Log } from '../api/logs';
+import { useToast } from '../components/Toast';
+import { logRecordedToast } from '../utils/logToast';
 import { palette, fonts, radius } from '../theme/tokens';
 import { Screen, Card, Button, Text, Title } from '../theme/ui';
 
@@ -134,6 +136,8 @@ const TYPE_LABELS: Record<string, string> = {
   milk: 'ミルク',
   food: '離乳食',
   diaper: 'おむつ',
+  diaper_wet: 'おむつ (おしっこ)',
+  diaper_poop: 'おむつ (うんち)',
   sleep: 'ねんね',
   play: 'あそび',
   sos: 'レスキュー',
@@ -227,6 +231,7 @@ export default function DashboardScreen(): React.ReactElement {
   const familyId = user?.familyId ?? '';
   const userRole: Performer = user?.role ?? 'papa';
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const activeChildId = useChildStore((s) => s.activeChildId);
 
@@ -281,8 +286,9 @@ export default function DashboardScreen(): React.ReactElement {
         childId: activeChildId ?? undefined,
         points: 10,
       }),
-    onSuccess: () => {
+    onSuccess: (newLog) => {
       queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+      toast.show(logRecordedToast(newLog.type, newLog.points ?? 10));
     },
   });
 

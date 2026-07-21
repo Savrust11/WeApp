@@ -17,6 +17,7 @@ import { useAuthStore } from './src/store/authStore';
 import { getBaseUrl } from './src/api/client';
 import { scheduleNextFeedingAlarm } from './src/utils/alarmManager';
 import { ThemeProvider } from './src/contexts/ThemeContext';
+import { ToastProvider } from './src/components/Toast';
 
 // Configure how push notifications are displayed when the app is in the foreground.
 Notifications.setNotificationHandler({
@@ -229,8 +230,10 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
-          <StatusBar style="light" />
-          <AppContent />
+          <ToastProvider>
+            <StatusBar style="light" />
+            <AppContent />
+          </ToastProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

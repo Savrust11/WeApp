@@ -41,6 +41,8 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { getLogs, createLog } from '../api/logs';
+import { useToast } from '../components/Toast';
+import { logRecordedToast } from '../utils/logToast';
 import { getChildren } from '../api/children';
 import {
   getActiveSleepSession, startSleepSession, endSleepSession, manualSleepEntry,
@@ -562,6 +564,7 @@ export default function HomeScreen() {
   const { user } = useAuthStore();
   const { activeChildId, activeChild, children, setChildren } = useChildStore();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const { isDark, colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -690,6 +693,7 @@ export default function HomeScreen() {
       }
       const allLogs = queryClient.getQueryData<any[]>(['logs', familyId]) ?? [];
       rebuildWidgetSnapshot(allLogs, child?.name ?? null).catch(() => {});
+      toast.show(logRecordedToast(newLog.type, newLog.points ?? 10));
     },
     onError: () => showAlert('記録の保存に失敗しました。'),
   });

@@ -40,6 +40,8 @@ import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { apiRequest } from '../api/client';
 import { getLogs, createLog, type Log } from '../api/logs';
+import { useToast } from '../components/Toast';
+import { logRecordedToast } from '../utils/logToast';
 import type { RootStackParamList } from '../navigation';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
@@ -72,6 +74,7 @@ export default function AlarmScreen() {
   const { user } = useAuthStore();
   const familyId = user?.familyId ?? 'default';
   const queryClient = useQueryClient();
+  const toast = useToast();
   const activeChildId = useChildStore((s) => s.activeChildId);
 
   // Wizard / flow state — matches web (step, showTimer, timeLeft) plus the
@@ -102,8 +105,9 @@ export default function AlarmScreen() {
   const createSosLog = useMutation({
     mutationFn: (data: { type: string; message: string }) =>
       createLog({ ...data, familyId: String(familyId) }),
-    onSuccess: () => {
+    onSuccess: (newLog) => {
       queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+      toast.show(logRecordedToast(newLog.type, newLog.points ?? 10));
     },
   });
 

@@ -42,6 +42,8 @@ import Animated, {
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { getLogs, createLog, updateLog, deleteLog, type Log } from '../api/logs';
+import { useToast } from '../components/Toast';
+import { logRecordedToast } from '../utils/logToast';
 import { apiGet } from '../api/client';
 import type { RootStackParamList } from '../navigation';
 import { useTheme } from '../contexts/ThemeContext';
@@ -969,6 +971,7 @@ export default function TimelineScreen() {
   const navigation   = useNavigation<Nav>();
   const familyId     = user?.familyId ?? 1;
   const queryClient  = useQueryClient();
+  const toast        = useToast();
   const { isDark, colors } = useTheme();
   const { activeChildId, activeChild } = useChildStore();
   const userId = String(user?.id ?? '');
@@ -1085,7 +1088,10 @@ export default function TimelineScreen() {
 
   const createLogMutation = useMutation({
     mutationFn: createLog,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['logs', familyId] }),
+    onSuccess: (newLog) => {
+      queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+      toast.show(logRecordedToast(newLog.type, newLog.points ?? 10));
+    },
     onError: () => showAlert('記録の保存に失敗しました。'),
   });
 
