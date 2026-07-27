@@ -781,12 +781,16 @@ export default function HealthScreen() {
     createGrowthMutation.mutate({
       childId: activeChildId,
       familyId,
+      // growth_records.user_id is NOT NULL — server rejected with 400 "Required"
+      // when this was omitted, which the UI surfaced as a "freeze" (modal stuck
+      // pending a mutation whose error alert competes with the open modal).
+      userId: user?.role ?? 'papa',
       weightGrams: gWeight ? Math.round(parseFloat(gWeight) * 1000) : undefined,
       heightCm: gHeight ? parseFloat(gHeight) : undefined,
       headCircumferenceCm: gHead ? parseFloat(gHead) : undefined,
       measuredAt: gDate || todayStr(),
     });
-  }, [activeChildId, familyId, gWeight, gHeight, gHead, gDate, createGrowthMutation]);
+  }, [activeChildId, familyId, user?.role, gWeight, gHeight, gHead, gDate, createGrowthMutation]);
 
   const handleSaveVaccine = useCallback(() => {
     if (!activeChildId) { Alert.alert('子どもを選択してください'); return; }
@@ -1297,10 +1301,12 @@ export default function HealthScreen() {
               <Text style={styles.fieldLabel}>測定日</Text>
               <TextInput
                 style={styles.input}
-                placeholder="YYYY-MM-DD"
+                placeholder="例: 2026-07-27"
                 placeholderTextColor={GRAY_400}
                 value={gDate}
                 onChangeText={setGDate}
+                keyboardType="numbers-and-punctuation"
+                maxLength={10}
               />
             </View>
             <View style={styles.modalButtons}>

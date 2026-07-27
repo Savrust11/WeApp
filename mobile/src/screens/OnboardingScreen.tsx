@@ -132,8 +132,15 @@ export default function OnboardingScreen() {
             color: palette.primary,
           });
           setChildren([newChild]);
-        } catch {
-          // Child creation failed silently — user can add from Settings
+        } catch (err: any) {
+          // Previously this failure was swallowed silently, so the user landed
+          // on the Home screen without a child and thought "child settings
+          // can't be done." Surface the real reason instead.
+          const msg =
+            err?.message?.includes('400')
+              ? '入力内容をご確認ください(誕生日はYYYY-MM-DD形式)'
+              : 'お子さまの登録に失敗しました。設定画面から後で追加できます。';
+          showAlert('お子さまの登録', msg);
         }
       }
     } catch {
@@ -353,11 +360,13 @@ export default function OnboardingScreen() {
           <Text style={styles.inputLabel}>誕生日（任意）</Text>
           <TextInput
             style={styles.input}
-            placeholder="YYYY-MM-DD"
+            placeholder="例: 2024-03-15"
             placeholderTextColor={palette.mutedForeground}
             value={childBirthday}
             onChangeText={setChildBirthday}
             keyboardType="numbers-and-punctuation"
+            autoComplete="birthdate-full"
+            maxLength={10}
           />
 
           <Text style={styles.inputLabel}>性別</Text>

@@ -578,7 +578,17 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
           </View>
 
           <Text style={ed.label}>記録時間</Text>
-          <TextInput style={ed.input} value={timeStr} onChangeText={setTimeStr} placeholder="HH:MM" keyboardType="numeric" />
+          {/* keyboardType was "numeric" — iOS's numeric keyboard has no ":" key,
+              so users could not type "13:45" and the input appeared frozen.
+              "numbers-and-punctuation" exposes the punctuation row. */}
+          <TextInput
+            style={ed.input}
+            value={timeStr}
+            onChangeText={setTimeStr}
+            placeholder="HH:MM"
+            keyboardType="numbers-and-punctuation"
+            maxLength={5}
+          />
 
           {log.type === 'sleep' && (
             <>

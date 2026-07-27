@@ -440,9 +440,11 @@ export default function ChildProfileScreen() {
               style={styles.input}
               value={birthday}
               onChangeText={setBirthday}
-              placeholder="YYYY-MM-DD"
+              placeholder="例: 2024-03-15"
               placeholderTextColor={palette.mutedForeground}
-              keyboardType="numeric"
+              // "numeric" hid the "-" key on iOS; users couldn't type YYYY-MM-DD.
+              keyboardType="numbers-and-punctuation"
+              maxLength={10}
             />
           </View>
 
