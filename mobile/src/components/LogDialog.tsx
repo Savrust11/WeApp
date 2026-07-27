@@ -35,7 +35,10 @@ import {
   Edit3, Clock, ChevronDown, ChevronUp, Timer,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SleepSession } from '../api/sleepSessions';
+import type { RootStackParamList } from '../navigation';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
 
@@ -270,6 +273,9 @@ export default function LogDialog({
   visible, logType, userRole, activeSleepSession,
   onClose, onSave, onEndSleepSession, onManualSleep,
 }: Props) {
+  // Navigation for in-dialog affordances (e.g. 食材チェックリスト button
+  // inside the 離乳食 dialog — matches web ActionButtons.tsx:2267-2275).
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   // ── Assignee (担当者 複数選択可) ─────────────────────────────────────────────
   const [assignees, setAssignees] = useState<Set<'self' | 'partner' | 'other'>>(new Set(['self']));
@@ -1509,6 +1515,19 @@ export default function LogDialog({
         <Text style={s.sectionLabel}>食事メモ（任意）</Text>
         {renderTextInput(foodNote, setFoodNote, '例：嬉しそうに食べた、口を開けるまで時間がかかった…', true)}
         {!foodReady && <Text style={s.foodHint}>1つ以上の食材の量を選んでください</Text>}
+
+        {/* 食材チェックリスト — web parity (ActionButtons.tsx:2267-2275). */}
+        <TouchableOpacity
+          style={s.foodTrackerLinkBtn}
+          onPress={() => {
+            onClose();
+            nav.navigate('FoodTracker');
+          }}
+          activeOpacity={0.7}
+        >
+          <ClipboardList size={16} color="#15803D" strokeWidth={2.5} />
+          <Text style={s.foodTrackerLinkText}>食材チェックリスト</Text>
+        </TouchableOpacity>
       </View>
     );
   } else if (logType === 'temperature') {
@@ -2075,6 +2094,20 @@ const s = StyleSheet.create({
   },
   addFoodEntryText: { fontFamily: fonts.bodyBold, fontSize: 13, fontWeight: '700', color: PURPLE_500 },
   foodHint: { fontFamily: fonts.body, fontSize: 11, color: palette.destructive, textAlign: 'center', marginTop: 4 },
+  // 食材チェックリスト — outline pill matching web's green-200/green-700 CTA.
+  foodTrackerLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: '#BBF7D0', // green-200
+    backgroundColor: palette.card,
+  },
+  foodTrackerLinkText: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#15803D' /* green-700 */ },
 
   clearLink: { fontFamily: fonts.bodyBold, fontSize: 10, fontWeight: '700', color: GRAY_400, textDecorationLine: 'underline' },
 

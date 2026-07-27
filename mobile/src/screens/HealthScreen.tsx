@@ -941,6 +941,24 @@ export default function HealthScreen() {
           </Card>
         )}
 
+        {/* ── 予防接種を記録 (always visible — client feedback: previous
+             build hid vaccine input entirely when there were no upcoming
+             doses, users had no way to record). ─────────────────────────── */}
+        <Card style={styles.listCard}>
+          <View style={styles.listCardHeader}>
+            <View style={styles.listHeaderLeft}>
+              <View style={styles.cyanIconWrap}>
+                <Syringe size={16} color={CYAN_600} />
+              </View>
+              <Text style={styles.listCardTitle}>予防接種</Text>
+            </View>
+          </View>
+          <Button onPress={() => openVaccineModal('')} style={styles.greenBtn}>
+            <Plus size={16} color={palette.primaryForeground} />
+            <Text style={styles.greenBtnText}>予防接種を記録する</Text>
+          </Button>
+        </Card>
+
         {/* ── 次の予防接種 (web: VaccineScheduleOverview) ──────────────────── */}
         {nextVaccines.length > 0 && (
           <Card style={styles.listCard}>
@@ -1215,16 +1233,8 @@ export default function HealthScreen() {
             </View>
           </View>
 
-          {/* 受診サポート quick access (mobile feature) */}
-          <TouchableOpacity
-            style={styles.foodLinkRow}
-            onPress={() => navigation.navigate('FoodTracker')}
-            activeOpacity={0.7}
-          >
-            <Salad size={16} color={PURPLE_600} />
-            <Text style={styles.foodLinkText}>食材チェックリスト</Text>
-            <Text style={styles.foodLinkArrow}>→</Text>
-          </TouchableOpacity>
+          {/* 食材チェックリスト was previously here — moved into the 離乳食
+              LogDialog (matches web layout) per client feedback. */}
 
           <Button variant="outline" onPress={handleExportPdf} style={styles.purpleBtn}>
             <FileDown size={16} color={palette.primaryForeground} />
@@ -1240,11 +1250,22 @@ export default function HealthScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.mamaCardTitle}>ママのからだ記録</Text>
-              <Text style={styles.mamaCardDesc}>産後のママ自身の体調を毎日記録できます</Text>
+              <Text style={styles.mamaCardDesc}>産後のママ自身の体調・お薬を記録できます</Text>
             </View>
           </View>
           <Button onPress={() => navigation.navigate('MamaHealth')} style={styles.mamaNavButton}>
-            <Text style={styles.mamaNavButtonText}>記録する →</Text>
+            <Text style={styles.mamaNavButtonText}>体調を記録する →</Text>
+          </Button>
+          {/* Direct shortcut labelled for meds — client feedback: "ママの薬
+              というボタンがない" (users couldn't discover the medicine log
+              from Health without tapping the generic 記録する button first).
+              Lands on the same screen; the お薬 section is inside it. */}
+          <Button
+            variant="outline"
+            onPress={() => navigation.navigate('MamaHealth')}
+            style={styles.mamaMedicineButton}
+          >
+            <Text style={styles.mamaMedicineButtonText}>💊 ママの薬を記録する →</Text>
           </Button>
         </Card>
       </ScrollView>
@@ -1635,6 +1656,15 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   mamaNavButtonText: { color: '#FFFFFF', fontSize: 14, fontFamily: fonts.bodyBold },
+  mamaMedicineButton: {
+    marginTop: 8,
+    borderRadius: radius.lg,
+    borderColor: ROSE_500,
+    borderWidth: 2,
+    backgroundColor: palette.card,
+    minHeight: 44,
+  },
+  mamaMedicineButtonText: { color: ROSE_500, fontSize: 14, fontFamily: fonts.bodyBold },
 
   // Modals
   modalOverlay: {
