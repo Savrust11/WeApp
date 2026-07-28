@@ -343,7 +343,9 @@ const styles = StyleSheet.create({
   },
   // Presets — web: flex gap-1.5 mb-2 overflow-x-auto
   presetsScroll: { marginBottom: 8 },
-  presetsContent: { gap: 6, paddingVertical: 2 },
+  // paddingRight leaves a visible "there's more" gap and prevents chips
+  // from being cut mid-character at the right edge on narrow phones.
+  presetsContent: { gap: 6, paddingVertical: 2, paddingRight: 24 },
   // web: px-3 py-1.5 bg-purple-50 text-purple-600 rounded-xl text-[11px] font-bold
   presetChip: {
     backgroundColor: PURPLE_50,

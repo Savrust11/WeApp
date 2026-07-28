@@ -853,10 +853,12 @@ const styles = StyleSheet.create({
   genderRow: { flexDirection: 'row', gap: 8 },
   genderBtn: { flex: 1 },
 
-  colorRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  // gap 6 + swatch 36 lets all 6 colors fit on a single row on narrow phones
+  // (previously 8+40 wrapped the 6th color onto a lonely second row).
+  colorRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   colorSwatch: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: radius.full,
     borderWidth: 2,
     borderColor: 'transparent',

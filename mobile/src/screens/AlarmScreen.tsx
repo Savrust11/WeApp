@@ -255,7 +255,13 @@ export default function AlarmScreen() {
               ]}
               onPress={() => navigation.goBack()}
             >
-              <Text style={styles.modalBtnCancelText}>キャンセル</Text>
+              <Text
+                style={styles.modalBtnCancelText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                キャンセル
+              </Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [
@@ -265,7 +271,13 @@ export default function AlarmScreen() {
               ]}
               onPress={() => setStarted(true)}
             >
-              <Text style={styles.modalBtnStartText}>レスキュー開始！</Text>
+              <Text
+                style={styles.modalBtnStartText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                レスキュー開始！
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -463,14 +475,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(46,41,50,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 28,
+    padding: 16,
   },
   modalCard: {
     width: '100%',
     maxWidth: 380,
     backgroundColor: palette.card,
     borderRadius: radius.xl,
-    padding: 28,
+    padding: 20,
     alignItems: 'center',
     ...shadows.soft,
   },
@@ -515,7 +527,7 @@ const styles = StyleSheet.create({
   },
   modalBtnCancelText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 15,
+    fontSize: 14,
     color: RESCUE_INK,
   },
   modalBtnStart: {
@@ -524,7 +536,7 @@ const styles = StyleSheet.create({
   },
   modalBtnStartText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 15,
+    fontSize: 14,
     color: palette.primaryForeground,
   },
 

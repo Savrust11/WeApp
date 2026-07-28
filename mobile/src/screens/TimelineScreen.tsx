@@ -1231,9 +1231,17 @@ export default function TimelineScreen() {
       <WeHeader />
 
       {/* ── Header (web: title + 分析 / 振り返り / PDF / date toggle) ─────── */}
-      <View style={t.header}>
+      {/* Title on its own row, pills on a horizontally-scrolling row below —
+          previously all 4 pills sat next to the title in a flex row, which
+          overflowed off the right edge on narrow phones (title ~150px +
+          4 pills ~230px > 360px screen). */}
+      <View style={t.headerStack}>
         <Title style={t.headerTitle}>1週間タイムライン</Title>
-        <View style={t.headerBtns}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={t.headerBtnsScroll}
+        >
           <TouchableOpacity style={[t.pill, t.pillIndigo]} onPress={() => navigation.navigate('DailyStats')} activeOpacity={0.85}>
             <Moon size={13} color="#6366F1" strokeWidth={2} />
             <Text style={[t.pillText, { color: '#6366F1' }]}>分析</Text>
@@ -1265,7 +1273,7 @@ export default function TimelineScreen() {
               {selectedDate.getMonth() + 1}/{selectedDate.getDate()}
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
 
       {/* ── Collapsible 7-day date-chip strip ───────────────────────────── */}
@@ -1673,6 +1681,9 @@ const t = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontFamily: fonts.sans, fontWeight: '700', color: palette.foreground },
   headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // Stacked layout (title above pills) — pills row is horizontally scrollable.
+  headerStack: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 8, gap: 8 },
+  headerBtnsScroll: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 24 },
 
   // Web: rounded-2xl px-3 py-1.5 soft tinted pills with 1px border
   pill: {
