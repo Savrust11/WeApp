@@ -283,13 +283,15 @@ const styles = StyleSheet.create({
 
   // Messages — web: px-4 max-h-36
   messagesContainer: {
-    // Was minHeight: 80 which showed an obvious empty band under
-    // "まだメッセージがありません" (the empty state itself is ~40px).
-    // Lower minHeight keeps the empty state compact and lets the card
-    // grow only when real messages arrive.
-    minHeight: 40,
-    maxHeight: 160,
+    // Height tuning journey:
+    //   Original 80 → showed an empty band when no messages
+    //   Reduced to 40 → too cramped when messages ARE present
+    //   Now 120/220 → generous room for a few messages, still compact
+    //   when empty (empty state itself renders around ~60px)
+    minHeight: 120,
+    maxHeight: 220,
     paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   loader: { marginVertical: 20 },
   emptyWrap: { paddingVertical: 16, alignItems: 'center' },

@@ -1702,7 +1702,10 @@ export default function HomeScreen() {
       {/* 12. WeBoard */}
       {familyId && userId && <WeBoard familyId={familyId} userId={userId} />}
 
-      <View style={{ height: 100 }} />
+      {/* Bottom-tab clearance — was 100 (created a visible empty band under
+          WeBoard); 24 is enough for the 64px tab bar since content already
+          stops above it. */}
+      <View style={{ height: 24 }} />
 
       {/* 13. ── LogDialog ─────────────────────────────────────────────────────── */}
       <LogDialog
