@@ -81,7 +81,10 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
 
   const sendMutation = useMutation({
     mutationFn: (message: string) =>
-      apiPost<WeBoardMessage>(`/api/we-board/${familyId}`, {
+      // Server POST is /api/we-board (no familyId in the URL path — the id
+      // travels in the body). GET is /api/we-board/:familyId which is why
+      // the two callsites look asymmetric. See server/routes.ts:788-795.
+      apiPost<WeBoardMessage>(`/api/we-board`, {
         familyId,
         userId,
         message,
