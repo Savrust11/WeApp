@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MessageSquare, Send } from 'lucide-react-native';
@@ -68,7 +69,7 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
 
   const { data: messages = [], isLoading } = useQuery<WeBoardMessage[]>({
     queryKey: ['weBoard', familyId],
-    queryFn: () => apiGet<WeBoardMessage[]>(`/api/weBoard/${familyId}`),
+    queryFn: () => apiGet<WeBoardMessage[]>(`/api/we-board/${familyId}`),
     enabled: !!familyId,
     refetchInterval: 30_000,
   });
@@ -80,7 +81,7 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
 
   const sendMutation = useMutation({
     mutationFn: (message: string) =>
-      apiPost<WeBoardMessage>(`/api/weBoard/${familyId}`, {
+      apiPost<WeBoardMessage>(`/api/we-board/${familyId}`, {
         familyId,
         userId,
         message,
@@ -90,16 +91,22 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
       setInputText('');
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200);
     },
+    onError: () => {
+      Alert.alert('送信に失敗しました', 'ネットワーク接続をご確認ください。');
+    },
   });
 
-  const handleSend = () => {
-    const trimmed = inputText.trim();
+  const handleSend = (override?: string) => {
+    const trimmed = (override ?? inputText).trim();
     if (!trimmed || sendMutation.isPending) return;
     sendMutation.mutate(trimmed);
   };
 
+  // Preset chips send immediately — matches web (WeBoard.tsx handleSend(qm)).
+  // Previously this only filled the input, requiring another tap; users
+  // typed "the bot didn't reply" because their preset never posted.
   const handlePreset = (preset: string) => {
-    setInputText(preset);
+    handleSend(preset);
   };
 
   return (
@@ -232,6 +239,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: PURPLE_100,
     marginHorizontal: 16,
+    // marginTop 16 gives visual breathing room from the feature card
+    // above (貢献度ダッシュボード) — previously they visually touched.
+    marginTop: 16,
     marginBottom: 16,
     overflow: 'hidden',
     ...shadows.soft,
@@ -270,7 +280,11 @@ const styles = StyleSheet.create({
 
   // Messages — web: px-4 max-h-36
   messagesContainer: {
-    minHeight: 80,
+    // Was minHeight: 80 which showed an obvious empty band under
+    // "まだメッセージがありません" (the empty state itself is ~40px).
+    // Lower minHeight keeps the empty state compact and lets the card
+    // grow only when real messages arrive.
+    minHeight: 40,
     maxHeight: 160,
     paddingHorizontal: 16,
   },
