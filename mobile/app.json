@@ -10,7 +10,8 @@
     },
     "updates": {
       "enabled": true,
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/a18687ba-cdd6-4087-a037-3ed16191aa9b"
     },
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
