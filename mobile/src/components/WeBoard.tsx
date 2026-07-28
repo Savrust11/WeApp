@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquare, Send } from 'lucide-react-native';
+import { MessageSquare, Send, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { apiGet, apiPost } from '../api/client';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
@@ -64,6 +64,10 @@ function formatTime(iso: string): string {
 
 export default function WeBoard({ familyId, userId }: WeBoardProps) {
   const [inputText, setInputText] = useState('');
+  // Web parity (WeBoard.tsx:26): collapsed shows the 3 most recent,
+  // expanded shows up to 10. The toggle button only renders when there
+  // are more than 3 messages.
+  const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const queryClient = useQueryClient();
 
@@ -74,10 +78,11 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
     refetchInterval: 30_000,
   });
 
-  // Show only the 3 most recent messages, sorted oldest-first for display
+  // Sorted oldest-first for display; slice from the end so the most recent
+  // messages are always in view. Server returns up to 10 (storage.ts limit).
   const recent = [...messages]
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-    .slice(-3);
+    .slice(expanded ? -10 : -3);
 
   const sendMutation = useMutation({
     mutationFn: (message: string) =>
@@ -118,19 +123,40 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
       keyboardVerticalOffset={80}
     >
       <View style={styles.card}>
-        {/* Card header — web: icon box + title/subtitle */}
+        {/* Card header — web: icon box + title/subtitle + optional expand
+            toggle on the right. Toggle only appears when > 3 messages,
+            same as web (WeBoard.tsx:68). */}
         <View style={styles.cardHeader}>
-          <View style={styles.headerIconBox}>
-            <MessageSquare size={16} color={PURPLE_600} strokeWidth={2.5} />
+          <View style={styles.headerLeft}>
+            <View style={styles.headerIconBox}>
+              <MessageSquare size={16} color={PURPLE_600} strokeWidth={2.5} />
+            </View>
+            <View>
+              <Text style={styles.cardTitle}>Weボード</Text>
+              <Text style={styles.cardSubtitle}>パートナーへのひとこと</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.cardTitle}>Weボード</Text>
-            <Text style={styles.cardSubtitle}>パートナーへのひとこと</Text>
-          </View>
+          {messages.length > 3 && (
+            <TouchableOpacity
+              style={styles.expandBtn}
+              onPress={() => setExpanded((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.expandBtnText}>
+                {expanded ? '閉じる' : 'もっと見る'}
+              </Text>
+              {expanded ? (
+                <ChevronUp size={12} color={PURPLE_600} strokeWidth={2.5} />
+              ) : (
+                <ChevronDown size={12} color={PURPLE_600} strokeWidth={2.5} />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Messages area */}
-        <View style={styles.messagesContainer}>
+        {/* Messages area — height grows when expanded so the extra
+            messages have room to scroll within the card. */}
+        <View style={[styles.messagesContainer, expanded && styles.messagesContainerExpanded]}>
           {isLoading ? (
             <ActivityIndicator color={palette.primary} style={styles.loader} />
           ) : recent.length === 0 ? (
@@ -252,14 +278,36 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  // web: px-4 pt-4 pb-2 flex items-center gap-2
+  // web: px-4 pt-4 pb-2 flex items-center justify-between
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
+  },
+  // Left cluster: icon + title/subtitle
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  // Right cluster: expand/collapse toggle — matches web
+  // (button-we-board-expand). Purple pill, small chevron.
+  expandBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
+  expandBtnText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: PURPLE_600,
   },
   headerIconBox: {
     width: 32,
@@ -281,17 +329,17 @@ const styles = StyleSheet.create({
     color: GRAY_400,
   },
 
-  // Messages — web: px-4 max-h-36
+  // Messages — web: px-4 max-h-36 collapsed / max-h-64 expanded
   messagesContainer: {
-    // Height tuning journey:
-    //   Original 80 → showed an empty band when no messages
-    //   Reduced to 40 → too cramped when messages ARE present
-    //   Now 120/220 → generous room for a few messages, still compact
-    //   when empty (empty state itself renders around ~60px)
     minHeight: 120,
     maxHeight: 220,
     paddingHorizontal: 16,
     paddingBottom: 8,
+  },
+  // Expanded state — tall enough to show ~7-10 messages before scrolling.
+  // Matches web's max-h-64 (256px) roughly.
+  messagesContainerExpanded: {
+    maxHeight: 360,
   },
   loader: { marginVertical: 20 },
   emptyWrap: { paddingVertical: 16, alignItems: 'center' },
