@@ -20,6 +20,11 @@ export interface Log {
   poopConsistency?: string;
   memo?: string;
   amount?: string;
+  // Sleep-log fields (edit dialog can round-trip these — client feedback 2026-07-30)
+  settlingMethod?: string | null;
+  settlingMinutes?: number | null;
+  sleepLocation?: string | null;
+  sleepNote?: string | null;
 }
 
 export async function getLogs(familyId: number | string): Promise<Log[]> {

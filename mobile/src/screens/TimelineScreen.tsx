@@ -509,6 +509,10 @@ interface EditLogDialogProps {
   onSaved: () => void;
 }
 
+// ── Options mirror the ORIGIN web (Timeline.tsx:1795, 1825) exactly.
+const SLEEP_SETTLING_METHODS = ['抱っこ', '抱っこひも', '添い乳', '添い寝', 'なし'];
+const SLEEP_LOCATIONS        = ['布団', '抱っこ寝', 'ベビーカー', '抱っこひも寝', 'チャイルドシート'];
+
 function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -516,12 +520,42 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
 
   const [timeStr, setTimeStr] = useState('');
   const [nightWaking, setNightWaking] = useState('');
+  // Sleep-specific edit fields (client feedback 2026-07-30)
+  const [settlingMethods, setSettlingMethods] = useState<string[]>([]);
+  const [sleepLocation,   setSleepLocation]   = useState<string>('');
+  const [sleepNote,       setSleepNote]       = useState<string>('');
 
   useEffect(() => {
     if (!log) return;
     setTimeStr(fmtHHmm(log.createdAt));
     setNightWaking(String(parseNightWaking(log.memo) || ''));
+    // Hydrate sleep fields from the incoming log. settlingMethod is stored
+    // as a "・"-joined string (or literal "なし" for the exclusive choice).
+    if (log.type === 'sleep') {
+      const rawMethod = (log as any).settlingMethod as string | null | undefined;
+      if (rawMethod && rawMethod !== 'なし') setSettlingMethods(rawMethod.split('・').filter(Boolean));
+      else if (rawMethod === 'なし') setSettlingMethods(['なし']);
+      else setSettlingMethods([]);
+      setSleepLocation((log as any).sleepLocation ?? '');
+      setSleepNote((log as any).sleepNote ?? '');
+    } else {
+      setSettlingMethods([]);
+      setSleepLocation('');
+      setSleepNote('');
+    }
   }, [log]);
+
+  const toggleSettlingMethod = (m: string) => {
+    if (m === 'なし') {
+      setSettlingMethods(prev => prev.includes('なし') ? [] : ['なし']);
+    } else {
+      setSettlingMethods(prev =>
+        prev.includes(m)
+          ? prev.filter(x => x !== m)
+          : [...prev.filter(x => x !== 'なし'), m],
+      );
+    }
+  };
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Log> }) => updateLog(id, data),
@@ -554,7 +588,16 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
     newDate.setHours(hh, mm, 0, 0);
     const nw = parseInt(nightWaking) || 0;
     const newMemo = log.type === 'sleep' ? setNightWakingInMemo(log.memo, nw) : log.memo;
-    updateMut.mutate({ id: log.id, data: { createdAt: newDate.toISOString(), memo: newMemo } as any });
+    const payload: any = { createdAt: newDate.toISOString(), memo: newMemo };
+    if (log.type === 'sleep') {
+      // Persist the two "…がなかった" fields the client reported as
+      // missing (feedback 2026-07-30). settlingMethod joins with "・"
+      // when multiple chips are on; empty selection stores null.
+      payload.settlingMethod = settlingMethods.length > 0 ? settlingMethods.join('・') : null;
+      payload.sleepLocation  = sleepLocation || null;
+      payload.sleepNote      = sleepNote.trim() || null;
+    }
+    updateMut.mutate({ id: log.id, data: payload as any });
   };
 
   const handleDelete = () => {
@@ -608,6 +651,49 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
               {parseInt(nightWaking) > 0 && (
                 <Text style={ed.hint}>夜中起き −{nightWaking}分 として記録されます</Text>
               )}
+
+              {/* 寝かしつけ方法 (multi-select; なし is exclusive) — web parity */}
+              <Text style={[ed.label, { color: '#818CF8' /* indigo-400 */ }]}>寝かしつけ方法（任意）</Text>
+              <View style={ed.chipRow}>
+                {SLEEP_SETTLING_METHODS.map(m => {
+                  const on = settlingMethods.includes(m);
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => toggleSettlingMethod(m)}
+                      style={[ed.chip, on ? ed.chipOnIndigo : ed.chipOffIndigo]}
+                    >
+                      <Text style={[ed.chipText, on ? ed.chipTextOn : ed.chipTextIndigo]}>{m}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* ねんね場所 (single-select toggle) */}
+              <Text style={[ed.label, { color: '#38BDF8' /* sky-400 */ }]}>ねんね場所（任意）</Text>
+              <View style={ed.chipRow}>
+                {SLEEP_LOCATIONS.map(loc => {
+                  const on = sleepLocation === loc;
+                  return (
+                    <TouchableOpacity
+                      key={loc}
+                      onPress={() => setSleepLocation(on ? '' : loc)}
+                      style={[ed.chip, on ? ed.chipOnSky : ed.chipOffSky]}
+                    >
+                      <Text style={[ed.chipText, on ? ed.chipTextOn : ed.chipTextSky]}>{loc}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={[ed.label, { color: '#A855F7' /* purple-500 */ }]}>ねんねメモ（任意）</Text>
+              <TextInput
+                style={[ed.input, { minHeight: 60, textAlignVertical: 'top' }]}
+                value={sleepNote}
+                onChangeText={setSleepNote}
+                placeholder="例：スムーズに寝付いた、途中で起きて再入眠に時間がかかった…"
+                multiline
+              />
             </>
           )}
 
@@ -1987,6 +2073,22 @@ const ed = StyleSheet.create({
     color: palette.foreground, marginBottom: 12,
   },
   hint: { fontSize: 12, fontFamily: fonts.body, color: palette.primary, marginBottom: 8, marginTop: -8 },
+
+  // Chips for the sleep-log settling-method / sleep-location selectors.
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  chip: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: radius.md, borderWidth: 2,
+  },
+  chipText: { fontFamily: fonts.bodyBold, fontSize: 12 },
+  chipTextOn: { color: '#fff' },
+  chipOnIndigo:  { backgroundColor: '#6366F1', borderColor: '#6366F1' },
+  chipOffIndigo: { backgroundColor: palette.card, borderColor: '#E0E7FF' },
+  chipTextIndigo: { color: '#6366F1' },
+  chipOnSky:  { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
+  chipOffSky: { backgroundColor: palette.card, borderColor: '#E0F2FE' },
+  chipTextSky: { color: '#0EA5E9' },
+
   btnRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   cancelBtn: { flex: 1, backgroundColor: palette.muted, borderRadius: radius.lg, paddingVertical: 14, alignItems: 'center' },
   cancelText: { color: palette.mutedForeground, fontSize: 14, fontFamily: fonts.bodySemibold },
