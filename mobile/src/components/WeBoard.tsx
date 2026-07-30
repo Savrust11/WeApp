@@ -239,11 +239,11 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
               onChangeText={setInputText}
               multiline={false}
               returnKeyType="send"
-              onSubmitEditing={handleSend}
+              onSubmitEditing={() => handleSend()}
             />
             <TouchableOpacity
               style={[styles.sendButton, (!inputText.trim() || sendMutation.isPending) && styles.sendButtonDisabled]}
-              onPress={handleSend}
+              onPress={() => handleSend()}
               disabled={!inputText.trim() || sendMutation.isPending}
               activeOpacity={0.8}
             >

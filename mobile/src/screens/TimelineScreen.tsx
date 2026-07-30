@@ -510,8 +510,10 @@ interface EditLogDialogProps {
 }
 
 // ── Options mirror the ORIGIN web (Timeline.tsx:1795, 1825) exactly.
-const SLEEP_SETTLING_METHODS = ['抱っこ', '抱っこひも', '添い乳', '添い寝', 'なし'];
-const SLEEP_LOCATIONS        = ['布団', '抱っこ寝', 'ベビーカー', '抱っこひも寝', 'チャイルドシート'];
+// (Renamed to avoid shadowing the `SLEEP_LOCATIONS` Set at line 128 used
+// by the sleep-badge renderer.)
+const SLEEP_EDIT_METHOD_OPTIONS   = ['抱っこ', '抱っこひも', '添い乳', '添い寝', 'なし'];
+const SLEEP_EDIT_LOCATION_OPTIONS = ['布団', '抱っこ寝', 'ベビーカー', '抱っこひも寝', 'チャイルドシート'];
 
 function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
   const queryClient = useQueryClient();
@@ -655,7 +657,7 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
               {/* 寝かしつけ方法 (multi-select; なし is exclusive) — web parity */}
               <Text style={[ed.label, { color: '#818CF8' /* indigo-400 */ }]}>寝かしつけ方法（任意）</Text>
               <View style={ed.chipRow}>
-                {SLEEP_SETTLING_METHODS.map(m => {
+                {SLEEP_EDIT_METHOD_OPTIONS.map(m => {
                   const on = settlingMethods.includes(m);
                   return (
                     <TouchableOpacity
@@ -672,7 +674,7 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
               {/* ねんね場所 (single-select toggle) */}
               <Text style={[ed.label, { color: '#38BDF8' /* sky-400 */ }]}>ねんね場所（任意）</Text>
               <View style={ed.chipRow}>
-                {SLEEP_LOCATIONS.map(loc => {
+                {SLEEP_EDIT_LOCATION_OPTIONS.map(loc => {
                   const on = sleepLocation === loc;
                   return (
                     <TouchableOpacity
