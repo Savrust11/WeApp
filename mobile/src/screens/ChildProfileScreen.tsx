@@ -27,7 +27,9 @@ import {
   Check,
   Sparkles,
   ChevronRight,
+  Calendar as CalendarIcon,
 } from 'lucide-react-native';
+import DatePickerModal from '../components/DatePickerModal';
 import { getChildren, updateChild, type Child } from '../api/children';
 import { getLogs } from '../api/logs';
 import { useAuthStore } from '../store/authStore';
@@ -187,6 +189,7 @@ export default function ChildProfileScreen() {
 
   const [name, setName] = useState(child?.name ?? '');
   const [birthday, setBirthday] = useState(child?.birthday ?? '');
+  const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
   const [gender, setGender] = useState<'male' | 'female' | 'other'>(
     child?.gender ?? 'male',
   );
@@ -436,15 +439,29 @@ export default function ChildProfileScreen() {
 
           <View>
             <Text style={styles.label}>たんじょうび</Text>
-            <TextInput
-              style={styles.input}
-              value={birthday}
-              onChangeText={setBirthday}
-              placeholder="例: 2024-03-15"
-              placeholderTextColor={palette.mutedForeground}
-              // "numeric" hid the "-" key on iOS; users couldn't type YYYY-MM-DD.
-              keyboardType="numbers-and-punctuation"
-              maxLength={10}
+            {/* Calendar picker instead of manual entry (client feedback 2026-07-30). */}
+            <Button
+              variant="outline"
+              onPress={() => setShowBirthdayPicker(true)}
+              style={styles.datePickerBtn}
+            >
+              <View style={styles.datePickerBtnInner}>
+                <CalendarIcon size={16} color={palette.mutedForeground} strokeWidth={2} />
+                <Text style={[
+                  styles.datePickerBtnText,
+                  !birthday && { color: palette.mutedForeground },
+                ]}>
+                  {birthday || '日付を選ぶ'}
+                </Text>
+              </View>
+            </Button>
+            <DatePickerModal
+              visible={showBirthdayPicker}
+              initialDate={birthday}
+              maxDate={new Date()}
+              title="たんじょうびを選ぶ"
+              onConfirm={setBirthday}
+              onClose={() => setShowBirthdayPicker(false)}
             />
           </View>
 
@@ -849,6 +866,17 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     color: palette.foreground,
   },
+  datePickerBtn: {
+    backgroundColor: palette.card,
+    borderRadius: radius.sm,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: palette.border,
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+  },
+  datePickerBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  datePickerBtnText: { fontFamily: fonts.body, fontSize: 15, color: palette.foreground },
 
   genderRow: { flexDirection: 'row', gap: 8 },
   genderBtn: { flex: 1 },

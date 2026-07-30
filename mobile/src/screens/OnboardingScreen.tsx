@@ -19,7 +19,9 @@ import {
   Share2,
   ChartColumn,
   NotebookPen,
+  Calendar as CalendarIcon,
 } from 'lucide-react-native';
+import DatePickerModal from '../components/DatePickerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
@@ -66,6 +68,7 @@ export default function OnboardingScreen() {
 
   const [childName, setChildName] = useState('');
   const [childBirthday, setChildBirthday] = useState('');
+  const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
   const [childGender, setChildGender] = useState<Gender>('other');
 
   const [loading, setLoading] = useState(false);
@@ -358,15 +361,29 @@ export default function OnboardingScreen() {
           />
 
           <Text style={styles.inputLabel}>誕生日（任意）</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="例: 2024-03-15"
-            placeholderTextColor={palette.mutedForeground}
-            value={childBirthday}
-            onChangeText={setChildBirthday}
-            keyboardType="numbers-and-punctuation"
-            autoComplete="birthdate-full"
-            maxLength={10}
+          {/* Web-parity: tap opens a calendar picker instead of manual keyboard entry. */}
+          <Button
+            variant="outline"
+            onPress={() => setShowBirthdayPicker(true)}
+            style={styles.datePickerButton}
+          >
+            <View style={styles.datePickerButtonInner}>
+              <CalendarIcon size={16} color={palette.mutedForeground} strokeWidth={2} />
+              <Text style={[
+                styles.datePickerButtonText,
+                !childBirthday && { color: palette.mutedForeground },
+              ]}>
+                {childBirthday || '日付を選ぶ'}
+              </Text>
+            </View>
+          </Button>
+          <DatePickerModal
+            visible={showBirthdayPicker}
+            initialDate={childBirthday}
+            maxDate={new Date()}
+            title="誕生日を選ぶ"
+            onConfirm={setChildBirthday}
+            onClose={() => setShowBirthdayPicker(false)}
           />
 
           <Text style={styles.inputLabel}>性別</Text>
@@ -578,6 +595,20 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     color: palette.foreground,
   },
+  // Date-picker trigger button — visually matches the text input above it
+  // so the form's rhythm isn't broken.
+  datePickerButton: {
+    width: '100%',
+    backgroundColor: palette.card,
+    borderRadius: radius.sm,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: palette.border,
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+  },
+  datePickerButtonInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  datePickerButtonText: { fontFamily: fonts.body, fontSize: 16, color: palette.foreground },
 
   // Role step
   roleRow: { flexDirection: 'row', gap: 16, marginVertical: 8, justifyContent: 'center' },

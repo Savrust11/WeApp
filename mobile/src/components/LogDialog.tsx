@@ -90,6 +90,10 @@ export interface LogSaveData {
   disciplineType?: string;
   /** 抱っこ: end time ISO string. */
   holdEndAt?: string;
+  /** お散歩: end time ISO string. */
+  walkEndAt?: string;
+  /** Milk logs flagged as "not counted for next-feeding prediction". */
+  excludeFromInterval?: boolean;
   /** Custom record timestamp (ISO) when user changed "時間を変更". */
   createdAt?: string;
   /** Joined performer roles for web parity ("mama・papa"). */
@@ -326,6 +330,9 @@ export default function LogDialog({
   const [spitUpAmount, setSpitUpAmount] = useState('');
   const [spitUpTiming, setSpitUpTiming] = useState('');
   const [spitUpNote,   setSpitUpNote]   = useState('');
+  // Web-parity: excludeFromInterval — when true, this milk log is not
+  // used to predict the next feeding time. Missing on mobile until 2026-07-30.
+  const [excludeFromInterval, setExcludeFromInterval] = useState(false);
 
   const clearBreast = () => { if (breastRef.current) { clearInterval(breastRef.current); breastRef.current = null; } };
   const startBreastTimer = (side: 'left' | 'right') => {
@@ -433,6 +440,11 @@ export default function LogDialog({
   const [holdEndTime, setHoldEndTime] = useState('');
   const [holdMemo,    setHoldMemo]    = useState('');
 
+  // ── お散歩 (walk) — same shape as hold: start + optional end time + memo.
+  //    Web parity: ActionButtons.tsx:277-282 + saves walkEndAt.
+  const [walkEndTime, setWalkEndTime] = useState('');
+  const [walkMemo,    setWalkMemo]    = useState('');
+
   // ── Food (per-食材 rows with 7-level amount) ─────────────────────────────────
   interface FoodEntry { name: string; amount: string }
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([{ name: '', amount: '' }]);
@@ -486,6 +498,7 @@ export default function LogDialog({
     setBreastTimerRunning(false); setBreastTimerPaused(false); setBreastTimerSide('left'); setBreastTimerSec(0);
     setIsExpressed(false); setExpressedMl(0); setFormulaMl(0);
     setSpitUp(false); setSpitUpAmount(''); setSpitUpTiming(''); setSpitUpNote('');
+    setExcludeFromInterval(false);
     setExprStep('timer'); setExprManualMode(false);
     setExprLeftSec(0); setExprRightSec(0); setExprActiveSide(null);
     setExprManualLeft(''); setExprManualRight('');
@@ -496,6 +509,7 @@ export default function LogDialog({
     setManualStart(''); setManualEnd(''); setManualNoEnd(false); setManualSleepError('');
     setSleepElapsedMin(0);
     setHoldEndTime(''); setHoldMemo('');
+    setWalkEndTime(''); setWalkMemo('');
     setFoodEntries([{ name: '', amount: '' }]); setFoodNote('');
     setTextValue('');
     setMealResult(''); setMealMemo('');
@@ -534,11 +548,12 @@ export default function LogDialog({
       spitUpAmount: spitUp ? spitUpAmount || undefined : undefined,
       spitUpTiming: spitUp ? spitUpTiming || undefined : undefined,
       spitUpNote:   spitUp && spitUpNote.trim() ? spitUpNote.trim() : undefined,
+      excludeFromInterval,
     };
     finishWith(data);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMilkType, assignees, breastLeftMin, breastRightMin, isExpressed, expressedMl,
-      formulaMl, spitUp, spitUpAmount, spitUpTiming, spitUpNote, logTime]);
+      formulaMl, spitUp, spitUpAmount, spitUpTiming, spitUpNote, excludeFromInterval, logTime]);
 
   const handleExpressSubmit = useCallback(() => {
     clearExpr();
@@ -650,6 +665,34 @@ export default function LogDialog({
         };
         break;
       }
+      case 'walk': {
+        // Walk = same shape as hold; server uses walkEndAt to render a
+        // duration band on the timeline (Timeline.tsx:470-478).
+        const ca = createdAtIso();
+        const startD = ca ? new Date(ca) : new Date();
+        let endIso: string | undefined;
+        let durNote = '';
+        if (walkEndTime && /^\d{1,2}:\d{2}$/.test(walkEndTime)) {
+          const today = new Date().toISOString().split('T')[0];
+          const end = new Date(`${today}T${walkEndTime.padStart(5, '0')}:00`);
+          if (!isNaN(end.getTime())) {
+            endIso = end.toISOString();
+            const mins = Math.round((end.getTime() - startD.getTime()) / 60000);
+            if (mins > 0) {
+              const h = Math.floor(mins / 60);
+              const m = mins % 60;
+              durNote = h > 0 ? `${h}時間${m > 0 ? `${m}分` : ''}` : `${m}分`;
+              durNote = `（${durNote}）`;
+            }
+          }
+        }
+        data = {
+          ...data,
+          walkEndAt: endIso,
+          memo: [`お散歩${durNote}`, walkMemo.trim()].filter(Boolean).join(' ') || undefined,
+        };
+        break;
+      }
       case 'meal': {
         const lbl = MEAL_RESULTS.find(m => m.id === mealResult)?.label ?? mealResult;
         data = { ...data, mealResult, memo: [`ごはん: ${lbl}`, mealMemo.trim()].filter(Boolean).join(' ') || undefined };
@@ -692,7 +735,7 @@ export default function LogDialog({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     logType, assignees, diaperPee, diaperPoop, poopColor, poopConsistency, stoolAmount,
-    foodEntries, foodNote, holdEndTime, holdMemo, mealResult, mealMemo,
+    foodEntries, foodNote, holdEndTime, holdMemo, walkEndTime, walkMemo, mealResult, mealMemo,
     disciplineType, disciplineMemo, playTypes, playMemo, drinkType, drinkCustom, drinkAmount,
     toiletResult, medName, medDose, medMemo, tempValue, selectedSymptoms, symptomNote, textValue,
     logTime, handleExpressSubmit,
@@ -1180,6 +1223,24 @@ export default function LogDialog({
             {renderTextInput(spitUpNote, setSpitUpNote, '例）噴水のように吐いた、ダラダラ続く…', true)}
           </>
         )}
+
+        {/* Web-parity: 授乳間隔の計算から除外 — for solids-adjacent top-ups
+            that shouldn't reset the "next feeding" prediction timer. */}
+        <View style={{ backgroundColor: PURPLE_50, borderColor: PURPLE_100, borderWidth: 1, borderRadius: 12, padding: 10, marginTop: 6 }}>
+          <TouchableOpacity
+            style={s.checkRow}
+            onPress={() => setExcludeFromInterval(v => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={[s.checkbox, excludeFromInterval && { backgroundColor: PURPLE_600, borderColor: PURPLE_600 }]}>
+              {excludeFromInterval && <Check size={13} color="#fff" strokeWidth={3} />}
+            </View>
+            <Text style={[s.checkLabel, { color: PURPLE_600 }]}>授乳間隔の計算から除外</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 11, color: PURPLE_400, marginTop: 4, paddingLeft: 26 }}>
+            離乳食とセットの授乳など、次の授乳予測にカウントしたくない時にチェック
+          </Text>
+        </View>
 
         <TouchableOpacity
           style={[s.primarySolid, { backgroundColor: BLUE_500, paddingVertical: 15, marginTop: 4 }, milkDisabled && s.btnDisabled]}
@@ -1755,6 +1816,44 @@ export default function LogDialog({
         {renderAssignee()}
         <Text style={s.sectionLabel}>メモ（任意）</Text>
         {renderTextInput(holdMemo, setHoldMemo, '様子など…')}
+      </View>
+    );
+  } else if (logType === 'walk') {
+    // お散歩 — start + optional end time → duration band on the timeline.
+    // Missing on mobile until client feedback 2026-07-30.
+    const ca = createdAtIso();
+    const startD = ca ? new Date(ca) : new Date();
+    let dur = 0;
+    if (walkEndTime && /^\d{1,2}:\d{2}$/.test(walkEndTime)) {
+      const today = new Date().toISOString().split('T')[0];
+      const e = new Date(`${today}T${walkEndTime.padStart(5, '0')}:00`);
+      if (!isNaN(e.getTime())) dur = Math.round((e.getTime() - startD.getTime()) / 60000);
+    }
+    body = (
+      <View style={s.section}>
+        <Text style={s.sectionLabel}>開始時刻</Text>
+        {renderTimeEdit()}
+        <View style={s.rowBetween}>
+          <Text style={s.sectionLabel}>終了時刻（任意・HH:MM）</Text>
+          {!!walkEndTime && (
+            <TouchableOpacity onPress={() => setWalkEndTime('')}>
+              <Text style={s.clearLink}>クリア</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <TextInput
+          style={s.input}
+          placeholder="HH:MM"
+          placeholderTextColor={GRAY_400}
+          value={walkEndTime}
+          onChangeText={setWalkEndTime}
+          keyboardType="numbers-and-punctuation"
+          maxLength={5}
+        />
+        {dur > 0 && <Text style={[s.infoBoxText, { color: GREEN_600, fontWeight: '700', textAlign: 'center', marginTop: 4 }]}>{dur}分間</Text>}
+        {renderAssignee()}
+        <Text style={s.sectionLabel}>メモ（任意）</Text>
+        {renderTextInput(walkMemo, setWalkMemo, '例：公園まで、赤ちゃんもご機嫌')}
       </View>
     );
   } else if (logType === 'medicine') {

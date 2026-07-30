@@ -93,7 +93,9 @@ import {
   Lamp,
   Pill,
   Thermometer,
+  Calendar as CalendarIcon,
 } from 'lucide-react-native';
+import DatePickerModal from '../components/DatePickerModal';
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { createChild } from '../api/children';
@@ -235,6 +237,8 @@ export default function SettingsScreen() {
   // ── Profile form (web form §1–4 — backed by /api/settings) ───────────────────
   const [babyName, setBabyName]           = useState('');
   const [babyBirthday, setBabyBirthday]   = useState('');
+  const [showBabyBirthdayPicker, setShowBabyBirthdayPicker] = useState(false);
+  const [showChildBirthdayPicker, setShowChildBirthdayPicker] = useState(false);
   const [specialTrick, setSpecialTrick]   = useState('');
   // Role / caregiver — web uses useUserType ("papa"/"mama"/"other").
   const [userRole, setUserRole]           = useState<'papa' | 'mama' | 'other'>(
@@ -658,13 +662,26 @@ export default function SettingsScreen() {
                   <Cake size={16} color="#C9A8E6" />
                   <Text style={styles.fieldLabelLg}>生年月日</Text>
                 </View>
-                <TextInput
-                  style={styles.profileInput}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={palette.mutedForeground}
-                  value={babyBirthday}
-                  onChangeText={setBabyBirthday}
-                  keyboardType="numbers-and-punctuation"
+                <TouchableOpacity
+                  style={[styles.profileInput, styles.datePickerTrigger]}
+                  onPress={() => setShowBabyBirthdayPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <CalendarIcon size={16} color={palette.mutedForeground} strokeWidth={2} />
+                  <Text style={{
+                    fontFamily: fonts.body, fontSize: 15,
+                    color: babyBirthday ? palette.foreground : palette.mutedForeground,
+                  }}>
+                    {babyBirthday || '日付を選ぶ'}
+                  </Text>
+                </TouchableOpacity>
+                <DatePickerModal
+                  visible={showBabyBirthdayPicker}
+                  initialDate={babyBirthday}
+                  maxDate={new Date()}
+                  title="生年月日を選ぶ"
+                  onConfirm={setBabyBirthday}
+                  onClose={() => setShowBabyBirthdayPicker(false)}
                 />
                 <Muted style={styles.fieldHint}>生後4ヶ月でAIキャラが切り替わります</Muted>
               </View>
@@ -1497,6 +1514,9 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     color: palette.foreground,
   },
+  // Applied on top of profileInput when the field is a date-picker trigger
+  // (not a real TextInput). Row layout for icon + text.
+  datePickerTrigger: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
   // Role selector — web Settings.tsx:1294-1313
   // grid grid-cols-3 gap-3; tile = flex-col items-center py-4 rounded-xl border-2 bg-white;
