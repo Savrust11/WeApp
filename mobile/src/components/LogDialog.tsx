@@ -39,8 +39,32 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SleepSession } from '../api/sleepSessions';
 import type { RootStackParamList } from '../navigation';
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '../api/client';
+import { useAuthStore } from '../store/authStore';
+import { useChildStore } from '../store/childStore';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
+
+// ── Food-picker types + categories (kept in sync with FoodTrackerScreen).
+// Client feedback 2026-07-30: reintroduce inline "select from checklist"
+// inside the 離乳食 dialog. Ported from web ActionButtons.tsx:2190-2260.
+interface FoodIngredientLite {
+  ingredientName: string;
+  category: string;
+  status: string;
+}
+const FOOD_PICKER_CATEGORIES: { id: string; label: string }[] = [
+  { id: 'grains',           label: '穀類' },
+  { id: 'vegetables',       label: '野菜' },
+  { id: 'fruits',           label: '果物' },
+  { id: 'protein_beans',    label: 'たんぱく質（豆）' },
+  { id: 'protein_fish',     label: 'たんぱく質（魚）' },
+  { id: 'protein_meat',     label: 'たんぱく質（肉）' },
+  { id: 'protein_eggs',     label: 'たんぱく質（卵）' },
+  { id: 'protein_dairy',    label: '乳製品' },
+  { id: 'other',            label: 'その他' },
+];
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -449,6 +473,39 @@ export default function LogDialog({
   interface FoodEntry { name: string; amount: string }
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([{ name: '', amount: '' }]);
   const [foodNote,    setFoodNote]    = useState('');
+  // Inline "select from checklist" (client feedback #4). Ported from web
+  // ActionButtons.tsx:2190-2270.
+  const [showFoodPicker, setShowFoodPicker] = useState(false);
+  const [foodPickerCat,  setFoodPickerCat]  = useState<string>('all');
+  const familyIdForFoodPicker = useAuthStore(s => s.user?.familyId);
+  const childIdForFoodPicker  = useChildStore(s => s.activeChildId);
+  const { data: pickerIngredients = [] } = useQuery<FoodIngredientLite[]>({
+    queryKey: ['foodIngredients', familyIdForFoodPicker, childIdForFoodPicker],
+    queryFn: () => apiGet(`/api/families/${familyIdForFoodPicker}/food-ingredients/${childIdForFoodPicker}`),
+    enabled: visible && logType === 'food' && !!familyIdForFoodPicker && !!childIdForFoodPicker,
+    staleTime: 60_000,
+  });
+  const triedIngredients = pickerIngredients.filter(
+    i => i.status === 'ok' || i.status === 'caution',
+  );
+  const foodPickerCategoriesWithItems = FOOD_PICKER_CATEGORIES.filter(cat =>
+    triedIngredients.some(i => i.category === cat.id),
+  );
+  const foodPickerDisplayItems = foodPickerCat === 'all'
+    ? triedIngredients
+    : triedIngredients.filter(i => i.category === foodPickerCat);
+  const foodPickerSelectedNames = new Set(foodEntries.map(e => e.name).filter(Boolean));
+  const addFromFoodPicker = (name: string) => {
+    if (foodPickerSelectedNames.has(name)) return;
+    const emptyIdx = foodEntries.findIndex(e => !e.name.trim() && !e.amount);
+    if (emptyIdx >= 0) {
+      const next = [...foodEntries];
+      next[emptyIdx] = { name, amount: '' };
+      setFoodEntries(next);
+    } else {
+      setFoodEntries([...foodEntries, { name, amount: '' }]);
+    }
+  };
 
   // ── Simple text ─────────────────────────────────────────────────────────────
   const [textValue, setTextValue] = useState('');
@@ -511,6 +568,7 @@ export default function LogDialog({
     setHoldEndTime(''); setHoldMemo('');
     setWalkEndTime(''); setWalkMemo('');
     setFoodEntries([{ name: '', amount: '' }]); setFoodNote('');
+    setShowFoodPicker(false); setFoodPickerCat('all');
     setTextValue('');
     setMealResult(''); setMealMemo('');
     setDisciplineType(''); setDisciplineMemo('');
@@ -1520,6 +1578,98 @@ export default function LogDialog({
       <View style={s.section}>
         {renderTimeEdit()}
         {renderAssignee()}
+
+        {/* ── チェックリストから選ぶ ─────────────────────────────────────
+            Collapsible chip picker that reads from the family's food
+            ingredients list. Web parity: ActionButtons.tsx:2190-2270.
+            Only appears when there ARE tried items to pick from — the
+            standalone 食材チェックリスト link at the bottom is still there
+            for adding new items. */}
+        <View style={s.foodPickerBox}>
+          <TouchableOpacity
+            style={s.foodPickerHeader}
+            onPress={() => setShowFoodPicker(v => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={s.foodPickerHeaderLeft}>
+              <ClipboardList size={14} color={PURPLE_600} strokeWidth={2.5} />
+              <Text style={s.foodPickerHeaderText}>チェックリストから選ぶ</Text>
+              {triedIngredients.length > 0 && (
+                <View style={s.foodPickerCountPill}>
+                  <Text style={s.foodPickerCountText}>{triedIngredients.length}件</Text>
+                </View>
+              )}
+            </View>
+            {showFoodPicker
+              ? <ChevronUp size={14} color={PURPLE_600} strokeWidth={2.5} />
+              : <ChevronDown size={14} color={PURPLE_600} strokeWidth={2.5} />}
+          </TouchableOpacity>
+          {showFoodPicker && (
+            <View style={s.foodPickerBody}>
+              {triedIngredients.length === 0 ? (
+                <Text style={s.foodPickerEmpty}>
+                  食材チェックリストで「食べた」をつけると{'\n'}ここに表示されます
+                </Text>
+              ) : (
+                <>
+                  {foodPickerCategoriesWithItems.length > 1 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.foodPickerCatRow}>
+                      <TouchableOpacity
+                        style={[s.foodPickerCatBtn, foodPickerCat === 'all' && s.foodPickerCatBtnOn]}
+                        onPress={() => setFoodPickerCat('all')}
+                      >
+                        <Text style={[s.foodPickerCatText, foodPickerCat === 'all' && s.foodPickerCatTextOn]}>全部</Text>
+                      </TouchableOpacity>
+                      {foodPickerCategoriesWithItems.map(cat => (
+                        <TouchableOpacity
+                          key={cat.id}
+                          style={[s.foodPickerCatBtn, foodPickerCat === cat.id && s.foodPickerCatBtnOn]}
+                          onPress={() => setFoodPickerCat(cat.id)}
+                        >
+                          <Text style={[s.foodPickerCatText, foodPickerCat === cat.id && s.foodPickerCatTextOn]}>{cat.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                  <View style={s.foodPickerChipWrap}>
+                    {foodPickerDisplayItems.map(item => {
+                      const isSelected = foodPickerSelectedNames.has(item.ingredientName);
+                      const isCaution = item.status === 'caution';
+                      return (
+                        <TouchableOpacity
+                          key={item.ingredientName}
+                          disabled={isSelected}
+                          onPress={() => addFromFoodPicker(item.ingredientName)}
+                          style={[
+                            s.foodPickerChip,
+                            isSelected
+                              ? { backgroundColor: PURPLE_100, borderColor: PURPLE_200 }
+                              : isCaution
+                                ? { backgroundColor: AMBER_50, borderColor: AMBER_300 }
+                                : { backgroundColor: palette.card, borderColor: GRAY_200 },
+                          ]}
+                        >
+                          {isSelected && <Check size={11} color={PURPLE_500} strokeWidth={2.5} />}
+                          <Text style={[
+                            s.foodPickerChipText,
+                            isSelected
+                              ? { color: PURPLE_400 }
+                              : isCaution
+                                ? { color: AMBER_700 }
+                                : { color: GRAY_700 },
+                          ]}>
+                            {item.ingredientName}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+            </View>
+          )}
+        </View>
+
         <View style={s.rowBetween}>
           <Text style={s.sectionLabel}>食べたもの（食材ごとに記録）</Text>
           {foodEntries.some(e => e.name.trim()) && (
@@ -2207,6 +2357,36 @@ const s = StyleSheet.create({
     backgroundColor: palette.card,
   },
   foodTrackerLinkText: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#15803D' /* green-700 */ },
+
+  // ── Inline food-picker styles (chip UI reads from foodIngredients).
+  foodPickerBox: { borderRadius: radius.md, borderWidth: 1, borderColor: PURPLE_100, overflow: 'hidden' },
+  foodPickerHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: PURPLE_50,
+  },
+  foodPickerHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  foodPickerHeaderText: { fontFamily: fonts.bodyBold, fontSize: 12, color: PURPLE_600 },
+  foodPickerCountPill: {
+    backgroundColor: PURPLE_200, paddingHorizontal: 6, borderRadius: radius.full, minWidth: 20, alignItems: 'center',
+  },
+  foodPickerCountText: { fontFamily: fonts.bodyBold, fontSize: 10, color: PURPLE_600 },
+  foodPickerBody: { padding: 10, backgroundColor: palette.card, gap: 8 },
+  foodPickerEmpty: { fontFamily: fonts.body, fontSize: 11, color: GRAY_400, textAlign: 'center', paddingVertical: 8 },
+  foodPickerCatRow: { flexDirection: 'row', gap: 4, paddingRight: 8 },
+  foodPickerCatBtn: {
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm,
+    borderWidth: 1, borderColor: GRAY_200, backgroundColor: palette.card,
+  },
+  foodPickerCatBtnOn: { backgroundColor: PURPLE_500, borderColor: PURPLE_500 },
+  foodPickerCatText: { fontFamily: fonts.bodyBold, fontSize: 10, color: GRAY_500 },
+  foodPickerCatTextOn: { color: '#fff' },
+  foodPickerChipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  foodPickerChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: radius.md, borderWidth: 2,
+  },
+  foodPickerChipText: { fontFamily: fonts.bodyBold, fontSize: 12 },
 
   clearLink: { fontFamily: fonts.bodyBold, fontSize: 10, fontWeight: '700', color: GRAY_400, textDecorationLine: 'underline' },
 

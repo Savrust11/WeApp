@@ -44,7 +44,7 @@ import { useChildStore } from '../store/childStore';
 import { getLogs, createLog, updateLog, deleteLog, type Log } from '../api/logs';
 import { useToast } from '../components/Toast';
 import { logRecordedToast } from '../utils/logToast';
-import { apiGet } from '../api/client';
+import { apiGet, apiPost } from '../api/client';
 import type { RootStackParamList } from '../navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
@@ -148,6 +148,16 @@ function minutesFromMidnight(d: Date): number {
 }
 function minutesToTopPx(minutes: number): number {
   return (minutes / (24 * 60)) * TOTAL_HEIGHT;
+}
+// Inverse of minutesToTopPx — used by drag-to-time to compute the new
+// minutes-since-midnight from a pixel y position. Client feedback #3.
+function topPxToMinutes(px: number): number {
+  return Math.round((px / TOTAL_HEIGHT) * 24 * 60);
+}
+function mmToHHmm(min: number): string {
+  const h = Math.max(0, Math.min(23, Math.floor(min / 60)));
+  const m = Math.max(0, Math.min(59, min % 60));
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -1211,6 +1221,35 @@ export default function TimelineScreen() {
   const selectedStr = toYMD(selectedDate);
   const isToday = selectedStr === toYMD(today);
 
+  // ── Drag-to-change-time (client feedback #3, 2026-07-30) ─────────────
+  // Long-press a log for 400ms to activate drag; drag vertically to move
+  // its record time; release to commit. Mirrors web Timeline.tsx:660-750.
+  const [draggingLogId, setDraggingLogId] = useState<number | null>(null);
+  const [dragTopPx, setDragTopPx]         = useState<number | null>(null);
+  const dragOriginTop = useRef<number>(0);
+
+  const updateLogTimeMut = useMutation({
+    mutationFn: ({ id, createdAt }: { id: number; createdAt: string }) =>
+      apiPost(`/api/logs/${id}/update-time`, { createdAt }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+      queryClient.invalidateQueries({ queryKey: ['logs'] });
+    },
+    onError: () => {
+      Alert.alert('時刻の変更に失敗しました', 'ネットワーク接続をご確認ください。');
+    },
+  });
+
+  const commitDrag = useCallback((log: Log, newTopPx: number) => {
+    // Center the entry, snap to 5-minute increments, clamp to the day.
+    const centerPx = newTopPx + LOG_ENTRY_HEIGHT / 2;
+    const rawMin = topPxToMinutes(centerPx);
+    const snappedMin = Math.max(0, Math.min(24 * 60 - 1, Math.round(rawMin / 5) * 5));
+    const d = new Date(selectedDate);
+    d.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
+    updateLogTimeMut.mutate({ id: log.id, createdAt: d.toISOString() });
+  }, [selectedDate, updateLogTimeMut]);
+
   // 7-day chip strip ending at today (or window around selectedDate)
   const dateChips = useMemo(() => {
     const windowEnd = (new Date(selectedDate).getTime() < addDays(today, -6).getTime())
@@ -1373,12 +1412,44 @@ export default function TimelineScreen() {
                   const textPri = isDark && !isFever ? '#EFEFEF' : palette.foreground;
                   const textSec = isDark && !isFever ? '#AAAACC' : palette.mutedForeground;
                   const promo = promoMap[log.id];
+                  const isDragging = draggingLogId === log.id;
+                  const effectiveTop = isDragging && dragTopPx !== null
+                    ? dragTopPx
+                    : Math.max(0, layout.top);
+                  // Pan gesture activates after a 400ms long-press. Short tap
+                  // still fires onPress on the TouchableOpacity below.
+                  const dragGesture = Gesture.Pan()
+                    .activateAfterLongPress(400)
+                    .onStart(() => {
+                      dragOriginTop.current = Math.max(0, layout.top);
+                      setDraggingLogId(log.id);
+                      setDragTopPx(dragOriginTop.current);
+                    })
+                    .onUpdate((e) => {
+                      const next = Math.max(0, Math.min(TOTAL_HEIGHT - LOG_ENTRY_HEIGHT, dragOriginTop.current + e.translationY));
+                      setDragTopPx(next);
+                    })
+                    .onEnd(() => {
+                      if (dragTopPx !== null && Math.abs(dragTopPx - dragOriginTop.current) > 2) {
+                        commitDrag(log, dragTopPx);
+                      }
+                      setDraggingLogId(null);
+                      setDragTopPx(null);
+                    })
+                    .onFinalize(() => {
+                      // Guarantee cleanup if the gesture is cancelled.
+                      setDraggingLogId(null);
+                      setDragTopPx(null);
+                    });
+                  const dragTimeLabel = isDragging && dragTopPx !== null
+                    ? mmToHHmm(Math.round(topPxToMinutes(dragTopPx + LOG_ENTRY_HEIGHT / 2) / 5) * 5)
+                    : null;
                   return (
                     <View
                       key={`log-${log.id}`}
                       style={[
                         tl.logEntryWrap,
-                        { top: Math.max(0, layout.top) },
+                        { top: effectiveTop, zIndex: isDragging ? 100 : 10 },
                       ]}
                     >
                       <View
@@ -1392,24 +1463,30 @@ export default function TimelineScreen() {
                         <View style={{ flexDirection: 'row' }}>
                           <View style={{ width: `${colL}%` }} />
                           <View style={{ width: `${colW}%` }}>
-                            <TouchableOpacity activeOpacity={0.75} onPress={() => setEditingLog(log)}>
-                              <View style={[
-                                tl.logCard,
-                                { backgroundColor: cardBg, borderColor: cardBorder },
-                                isFever && tl.logCardFever,
-                              ]}>
-                                <LogIcon type={logVisualType(log.type)} size={15} strokeWidth={2} />
-                                <View style={tl.logBody}>
-                                  <Text numberOfLines={1} style={[tl.logTitle, { color: textPri }]}>
-                                    {detail || label}
-                                  </Text>
-                                  <Text numberOfLines={1} style={[tl.logTime, { color: textSec }]}>
-                                    {fmtHHmm(log.createdAt)}{log.points ? `  +${log.points}pt` : ''}
-                                  </Text>
+                            <GestureDetector gesture={dragGesture}>
+                              <TouchableOpacity
+                                activeOpacity={0.75}
+                                onPress={() => { if (!isDragging) setEditingLog(log); }}
+                              >
+                                <View style={[
+                                  tl.logCard,
+                                  { backgroundColor: cardBg, borderColor: cardBorder },
+                                  isFever && tl.logCardFever,
+                                  isDragging && { transform: [{ scale: 1.05 }], shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
+                                ]}>
+                                  <LogIcon type={logVisualType(log.type)} size={15} strokeWidth={2} />
+                                  <View style={tl.logBody}>
+                                    <Text numberOfLines={1} style={[tl.logTitle, { color: textPri }]}>
+                                      {detail || label}
+                                    </Text>
+                                    <Text numberOfLines={1} style={[tl.logTime, { color: textSec }]}>
+                                      {dragTimeLabel ?? fmtHHmm(log.createdAt)}{log.points ? `  +${log.points}pt` : ''}
+                                    </Text>
+                                  </View>
                                 </View>
-                              </View>
-                            </TouchableOpacity>
-                            {promo && (
+                              </TouchableOpacity>
+                            </GestureDetector>
+                            {promo && !isDragging && (
                               <View style={tl.promoCard}>
                                 <Heart size={13} color="#D4A017" strokeWidth={2} />
                                 <Text style={tl.promoMsg} numberOfLines={2}>{promo.message}</Text>
