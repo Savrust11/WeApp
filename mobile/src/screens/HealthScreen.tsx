@@ -24,6 +24,7 @@ import type { RootStackParamList } from '../navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Card, Button, Text, Title, Muted } from '../theme/ui';
+import DatePickerModal from '../components/DatePickerModal';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -569,6 +570,7 @@ export default function HealthScreen() {
   const [showVaccineModal, setShowVaccineModal] = useState(false);
   const [vName, setVName] = useState('');
   const [vDate, setVDate] = useState(todayStr());
+  const [showVDatePicker, setShowVDatePicker] = useState(false);
   const [vNote, setVNote] = useState('');
 
   // ── Queries ────────────────────────────────────────────────────────────────
@@ -1379,12 +1381,23 @@ export default function HealthScreen() {
                 <Calendar size={14} color={GRAY_500} />
                 <Text style={styles.fieldLabel}>接種日</Text>
               </View>
-              <TextInput
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={GRAY_400}
-                value={vDate}
-                onChangeText={setVDate}
+              <TouchableOpacity
+                style={[styles.input, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+                onPress={() => setShowVDatePicker(true)}
+                activeOpacity={0.7}
+              >
+                <Calendar size={14} color={GRAY_500} />
+                <Text style={{ fontFamily: fonts.body, fontSize: 15, color: vDate ? palette.foreground : GRAY_400 }}>
+                  {vDate || '日付を選ぶ'}
+                </Text>
+              </TouchableOpacity>
+              <DatePickerModal
+                visible={showVDatePicker}
+                initialDate={vDate}
+                maxDate={new Date()}
+                title="接種日を選ぶ"
+                onConfirm={setVDate}
+                onClose={() => setShowVDatePicker(false)}
               />
             </View>
             <View style={styles.fieldGroup}>

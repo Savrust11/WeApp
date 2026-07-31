@@ -1322,13 +1322,29 @@ export default function SettingsScreen() {
 
               <View>
                 <Text style={styles.cpLabel}>たんじょうび</Text>
-                <TextInput
-                  style={styles.cpInput}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={palette.mutedForeground}
-                  value={childBirthday}
-                  onChangeText={setChildBirthday}
-                  keyboardType="numbers-and-punctuation"
+                {/* Missed in the earlier birthday-picker port — this modal
+                    is the actual "add child" flow (Settings sheet), not
+                    OnboardingScreen. Client feedback 2026-07-31. */}
+                <TouchableOpacity
+                  style={[styles.cpInput, styles.datePickerTrigger]}
+                  onPress={() => setShowChildBirthdayPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <CalendarIcon size={16} color={palette.mutedForeground} strokeWidth={2} />
+                  <Text style={{
+                    fontFamily: fonts.body, fontSize: 15,
+                    color: childBirthday ? palette.foreground : palette.mutedForeground,
+                  }}>
+                    {childBirthday || '日付を選ぶ'}
+                  </Text>
+                </TouchableOpacity>
+                <DatePickerModal
+                  visible={showChildBirthdayPicker}
+                  initialDate={childBirthday}
+                  maxDate={new Date()}
+                  title="たんじょうびを選ぶ"
+                  onConfirm={setChildBirthday}
+                  onClose={() => setShowChildBirthdayPicker(false)}
                 />
               </View>
 

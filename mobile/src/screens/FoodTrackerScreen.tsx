@@ -21,6 +21,7 @@ import { apiGet, apiPost, apiRequest } from '../api/client';
 import { useTheme } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Card, Button, Text, Title, Muted } from '../theme/ui';
+import DatePickerModal from '../components/DatePickerModal';
 
 // ─── Status colors (verbatim from web FoodTracker.tsx tailwind palette) ───────
 //  green-50 #F0FDF4  green-200 #BBF7D0  green-500 #22C55E  green-700 #15803D
@@ -159,6 +160,7 @@ export default function FoodTrackerScreen() {
   const [sheetItem, setSheetItem] = useState<{ name: string; category: string } | null>(null);
   const [sheetStatus, setSheetStatus] = useState<IngredientStatus | null>(null);
   const [sheetDate, setSheetDate] = useState(todayStr());
+  const [showSheetDatePicker, setShowSheetDatePicker] = useState(false);
   const [sheetNote, setSheetNote] = useState('');
 
   // Context menu (long-press)
@@ -603,17 +605,16 @@ export default function FoodTrackerScreen() {
                 </View>
               </View>
               {sheetStatus === 'ok' && (
-                <View style={[styles.dateRow, { borderColor: STATUS_GREEN_BORDER }]}>
+                <TouchableOpacity
+                  style={[styles.dateRow, { borderColor: STATUS_GREEN_BORDER }]}
+                  onPress={() => setShowSheetDatePicker(true)}
+                  activeOpacity={0.7}
+                >
                   <CalendarDays size={16} color={STATUS_GREEN} />
-                  <TextInput
-                    style={styles.dateInput}
-                    value={sheetDate}
-                    onChangeText={setSheetDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor={GRAY_400}
-                    keyboardType="numbers-and-punctuation"
-                  />
-                </View>
+                  <Text style={{ fontFamily: fonts.body, fontSize: 15, color: sheetDate ? palette.foreground : GRAY_400 }}>
+                    {sheetDate || '日付を選ぶ'}
+                  </Text>
+                </TouchableOpacity>
               )}
             </TouchableOpacity>
 
@@ -635,17 +636,16 @@ export default function FoodTrackerScreen() {
               </View>
               {sheetStatus === 'caution' && (
                 <View style={{ gap: 8, marginTop: 8 }}>
-                  <View style={[styles.dateRow, { borderColor: STATUS_ORANGE_BORDER }]}>
+                  <TouchableOpacity
+                    style={[styles.dateRow, { borderColor: STATUS_ORANGE_BORDER }]}
+                    onPress={() => setShowSheetDatePicker(true)}
+                    activeOpacity={0.7}
+                  >
                     <CalendarDays size={16} color={STATUS_ORANGE} />
-                    <TextInput
-                      style={styles.dateInput}
-                      value={sheetDate}
-                      onChangeText={setSheetDate}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={GRAY_400}
-                      keyboardType="numbers-and-punctuation"
-                    />
-                  </View>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 15, color: sheetDate ? palette.foreground : GRAY_400 }}>
+                      {sheetDate || '日付を選ぶ'}
+                    </Text>
+                  </TouchableOpacity>
                   <TextInput
                     style={styles.noteInput}
                     placeholder="症状やメモ（例: 口の周りが赤くなった）"
@@ -675,6 +675,15 @@ export default function FoodTrackerScreen() {
             </Button>
           </TouchableOpacity>
         </TouchableOpacity>
+        {/* Calendar picker for 食べた/注意 dates — replaces manual YYYY-MM-DD input. */}
+        <DatePickerModal
+          visible={showSheetDatePicker}
+          initialDate={sheetDate}
+          maxDate={new Date()}
+          title="日付を選ぶ"
+          onConfirm={setSheetDate}
+          onClose={() => setShowSheetDatePicker(false)}
+        />
       </Modal>
 
       {/* ── Context Menu (long-press) ───────────────────────────────────────────── */}
