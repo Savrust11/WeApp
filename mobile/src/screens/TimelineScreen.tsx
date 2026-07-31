@@ -1506,28 +1506,45 @@ export default function TimelineScreen() {
                     : Math.max(0, layout.top);
                   // Pan gesture activates after a 400ms long-press. Short tap
                   // still fires onPress on the TouchableOpacity below.
+                  // Gesture callbacks run on the UI thread as worklets —
+                  // React setState calls MUST be wrapped in runOnJS or the
+                  // app crashes the moment you touch a log card (this was
+                  // the root cause of the "app closes on tap" bug reported
+                  // 2026-07-31). Mirrors the pattern used by the reorder
+                  // gesture at line 385.
                   const dragGesture = Gesture.Pan()
                     .activateAfterLongPress(400)
                     .onStart(() => {
-                      dragOriginTop.current = Math.max(0, layout.top);
-                      setDraggingLogId(log.id);
-                      setDragTopPx(dragOriginTop.current);
+                      const originTop = Math.max(0, layout.top);
+                      dragOriginTop.current = originTop;
+                      runOnJS(setDraggingLogId)(log.id);
+                      runOnJS(setDragTopPx)(originTop);
                     })
                     .onUpdate((e) => {
-                      const next = Math.max(0, Math.min(TOTAL_HEIGHT - LOG_ENTRY_HEIGHT, dragOriginTop.current + e.translationY));
-                      setDragTopPx(next);
+                      const next = Math.max(
+                        0,
+                        Math.min(
+                          TOTAL_HEIGHT - LOG_ENTRY_HEIGHT,
+                          dragOriginTop.current + e.translationY,
+                        ),
+                      );
+                      runOnJS(setDragTopPx)(next);
                     })
                     .onEnd(() => {
-                      if (dragTopPx !== null && Math.abs(dragTopPx - dragOriginTop.current) > 2) {
-                        commitDrag(log, dragTopPx);
+                      // dragTopPx is a JS ref captured at gesture-build
+                      // time; safe to read from the worklet. Use runOnJS
+                      // for anything that touches React state.
+                      const finalPx = dragTopPx;
+                      if (finalPx !== null && Math.abs(finalPx - dragOriginTop.current) > 2) {
+                        runOnJS(commitDrag)(log, finalPx);
                       }
-                      setDraggingLogId(null);
-                      setDragTopPx(null);
+                      runOnJS(setDraggingLogId)(null);
+                      runOnJS(setDragTopPx)(null);
                     })
                     .onFinalize(() => {
-                      // Guarantee cleanup if the gesture is cancelled.
-                      setDraggingLogId(null);
-                      setDragTopPx(null);
+                      // Cleanup even on cancel — matches pattern above.
+                      runOnJS(setDraggingLogId)(null);
+                      runOnJS(setDragTopPx)(null);
                     });
                   const dragTimeLabel = isDragging && dragTopPx !== null
                     ? mmToHHmm(Math.round(topPxToMinutes(dragTopPx + LOG_ENTRY_HEIGHT / 2) / 5) * 5)
@@ -2022,10 +2039,14 @@ const tl = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(167,139,201,0.4)',
     justifyContent: 'center', zIndex: 5,
   },
-  sleepInner: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, gap: 3 },
+  // Sleep-block content sits at the LEFT so it stays visible when
+  // point-in-time logs (walk / hold / etc.) are positioned on top of
+  // the sleep bar. Was center-aligned before, which meant every
+  // overlapping log card would completely hide the ねんね label.
+  sleepInner: { alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 4, gap: 3 },
   sleepHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sleepTitle: { fontSize: 12, fontFamily: fonts.bodyBold, fontWeight: '700', color: '#7C5CBF' },
-  sleepBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' },
+  sleepBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-start' },
   sleepBadge: { borderRadius: radius.full, paddingHorizontal: 6, paddingVertical: 2 },
   sleepBadgeMethod: { backgroundColor: 'rgba(167,139,201,0.4)' },
   sleepBadgeLoc:    { backgroundColor: 'rgba(165,180,252,0.4)' },
@@ -2038,6 +2059,10 @@ const tl = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderRadius: radius.lg,
     paddingHorizontal: 8, paddingVertical: 6, minHeight: LOG_ENTRY_HEIGHT,
+    // Subtle shadow so the card clearly reads as "above" any sleep block
+    // it may overlap with. Android needs `elevation`; iOS uses shadow*.
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 }, elevation: 2,
   },
   logCardFever: {
     shadowColor: '#EF4444', shadowOpacity: 0.2, shadowRadius: 4,
