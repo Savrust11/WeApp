@@ -1284,9 +1284,12 @@ export default function LogDialog({
 
         {/* Web-parity: 授乳間隔の計算から除外 — for solids-adjacent top-ups
             that shouldn't reset the "next feeding" prediction timer. */}
-        <View style={{ backgroundColor: PURPLE_50, borderColor: PURPLE_100, borderWidth: 1, borderRadius: 12, padding: 10, marginTop: 6 }}>
+        <View style={{ backgroundColor: PURPLE_50, borderColor: PURPLE_100, borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 6 }}>
+          {/* Inline flex row instead of s.checkRow — the shared style has
+              a default 1px borderWidth with no borderColor, which rendered
+              as black inside the already-bordered purple box. */}
           <TouchableOpacity
-            style={s.checkRow}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
             onPress={() => setExcludeFromInterval(v => !v)}
             activeOpacity={0.7}
           >
@@ -1295,7 +1298,7 @@ export default function LogDialog({
             </View>
             <Text style={[s.checkLabel, { color: PURPLE_600 }]}>授乳間隔の計算から除外</Text>
           </TouchableOpacity>
-          <Text style={{ fontSize: 11, color: PURPLE_400, marginTop: 4, paddingLeft: 26 }}>
+          <Text style={{ fontSize: 11, color: PURPLE_400, marginTop: 6, paddingLeft: 30 }}>
             離乳食とセットの授乳など、次の授乳予測にカウントしたくない時にチェック
           </Text>
         </View>
