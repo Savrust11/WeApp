@@ -1913,7 +1913,11 @@ const t = StyleSheet.create({
   dateSleepMeta: { fontSize: 11, fontFamily: fonts.bodyBold, fontWeight: '700', color: '#A5B4FC' },
 
   // Timeline card — web: rounded-3xl shadow card wrapping the 24h grid
-  timelineCardWrap: { flex: 1, paddingHorizontal: 16, paddingBottom: 90 },
+  // paddingBottom was 90 (extra buffer above the tab bar) — client
+  // 2026-07-31 asked to shrink the empty band between the timeline
+  // card and the tab bar. Reduced to 12; the FAB (bottom: 80) floats
+  // OVER the timeline card, which is how FABs are supposed to work.
+  timelineCardWrap: { flex: 1, paddingHorizontal: 16, paddingBottom: 12 },
   timelineCard: {
     flex: 1,
     backgroundColor: palette.card,
