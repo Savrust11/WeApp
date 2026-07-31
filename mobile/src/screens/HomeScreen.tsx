@@ -85,7 +85,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 //
 // Buttons hidden by default regardless of phase: 'moisturize', 'nail_cut'
 
-interface LogButton { type: string; label: string; emoji: string; color: string }
+interface LogButton { type: string; label: string; emoji: string; color: string; icon?: string }
 
 export const PHASE_LABELS = [
   '乳児期 (0〜11ヶ月)',
@@ -111,7 +111,7 @@ export const PHASE_BUTTONS: LogButton[][] = [
     { type: 'bath',        label: 'おふろ',    emoji: '🛁', color: '#E0F7FA' },
     { type: 'play',        label: 'あそび',    emoji: '🎈', color: '#FCE4EC' },
     { type: 'hold',        label: '抱っこ',    emoji: '🤗', color: '#FFF0F5' },
-    { type: 'walk',        label: 'お散歩',    emoji: '🚶', color: '#E8F5E9' },
+    { type: 'walk',        label: 'お散歩',    emoji: '🚶', icon: 'Footprints', color: '#E8F5E9' },
     { type: 'drink',       label: 'のみもの',  emoji: '🥤', color: '#E3F2FD' },
     { type: 'school',      label: '園の記録',  emoji: '🏫', color: '#E8F5E9' },
     { type: 'toothbrush',  label: 'はみがき',  emoji: '🦷', color: '#E0F2F1' },
@@ -138,7 +138,7 @@ export const PHASE_BUTTONS: LogButton[][] = [
     { type: 'play',        label: 'あそび',    emoji: '🎈', color: '#FCE4EC' },
     { type: 'milestone',   label: 'はじめて',  emoji: '⭐', color: '#FFF9C4' },
     { type: 'hold',        label: '抱っこ',    emoji: '🤗', color: '#FFF0F5' },
-    { type: 'walk',        label: 'お散歩',    emoji: '🚶', color: '#E8F5E9' },
+    { type: 'walk',        label: 'お散歩',    emoji: '🚶', icon: 'Footprints', color: '#E8F5E9' },
     { type: 'drink',       label: 'のみもの',  emoji: '🥤', color: '#E3F2FD' },
     { type: 'school',      label: '園の記録',  emoji: '🏫', color: '#E8F5E9' },
     { type: 'toothbrush',  label: 'はみがき',  emoji: '🦷', color: '#E0F2F1' },
@@ -163,7 +163,7 @@ export const PHASE_BUTTONS: LogButton[][] = [
     { type: 'diaper',      label: 'おむつ',    emoji: '🚼', color: '#E3F2FD' },
     { type: 'bath',        label: 'おふろ',    emoji: '🛁', color: '#E0F7FA' },
     { type: 'hold',        label: '抱っこ',    emoji: '🤗', color: '#FFF0F5' },
-    { type: 'walk',        label: 'お散歩',    emoji: '🚶', color: '#E8F5E9' },
+    { type: 'walk',        label: 'お散歩',    emoji: '🚶', icon: 'Footprints', color: '#E8F5E9' },
     { type: 'drink',       label: 'のみもの',  emoji: '🥤', color: '#E3F2FD' },
     { type: 'school',      label: '園の記録',  emoji: '🏫', color: '#E8F5E9' },
     { type: 'toothbrush',  label: 'はみがき',  emoji: '🦷', color: '#E0F2F1' },
@@ -186,7 +186,7 @@ export const PHASE_BUTTONS: LogButton[][] = [
     { type: 'thank_you',   label: 'ありがとう',emoji: '💌', color: '#FCE4EC' },
     { type: 'snack',       label: 'おやつ',    emoji: '🍪', color: '#FFF8E1' },
     { type: 'drink',       label: 'のみもの',  emoji: '🥤', color: '#E3F2FD' },
-    { type: 'walk',        label: 'お散歩',    emoji: '🚶', color: '#E8F5E9' },
+    { type: 'walk',        label: 'お散歩',    emoji: '🚶', icon: 'Footprints', color: '#E8F5E9' },
     { type: 'toothbrush',  label: 'はみがき',  emoji: '🦷', color: '#E0F2F1' },
     { type: 'moisturize',  label: '保湿',      emoji: '💧', color: '#E3F2FD' },
     { type: 'nail_cut',    label: '爪切り',    emoji: '✂️', color: '#F3E5F5' },
