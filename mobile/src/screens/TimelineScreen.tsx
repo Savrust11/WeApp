@@ -621,11 +621,21 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
       <View style={ed.overlay}>
         <View style={ed.sheet}>
           <View style={ed.handle} />
+          {/* Sleep-log edits added 3 new sections (寝かしつけ方法 / 場所 /
+              メモ) — the sheet now overflows the screen on small phones
+              and the top part gets clipped. Wrap the body in a ScrollView
+              and cap sheet height so nothing is unreachable. Header was
+              also chunky: shrank title/infoPill vertical padding. */}
+          <ScrollView
+            style={{ maxHeight: '100%' }}
+            contentContainerStyle={{ paddingBottom: 8 }}
+            showsVerticalScrollIndicator={false}
+          >
           <Title style={ed.title}>記録の詳細</Title>
 
           {/* Web: info pill — bg-*-50 border-*-100 rounded-2xl */}
           <View style={[ed.infoPill, { backgroundColor: vis.soft, borderColor: vis.bord }]}>
-            <LogIcon type={logVisualType(log.type)} size={20} strokeWidth={2} />
+            <LogIcon type={logVisualType(log.type)} size={18} strokeWidth={2} />
             <View style={{ flex: 1 }}>
               <Text style={ed.infoLabel}>{label}</Text>
               {detail ? <Text style={ed.infoDetail}>{detail}</Text> : null}
@@ -711,6 +721,7 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
             <Trash2 size={15} color={palette.destructive} strokeWidth={2} />
             <Text style={ed.deleteText}>削除する</Text>
           </TouchableOpacity>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -2084,15 +2095,19 @@ const tl = StyleSheet.create({
 
 const ed = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: palette.card, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 32 },
-  handle: { width: 40, height: 4, backgroundColor: palette.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  title: { fontSize: 18, fontFamily: fonts.sans, fontWeight: '700', color: palette.foreground, textAlign: 'center', marginBottom: 16 },
+  // maxHeight 88% + reduced vertical padding keeps sleep-log edit content
+  // fully reachable via the internal ScrollView on small phones. Was:
+  // no maxHeight, padding 24, paddingBottom 32 — content overflowed
+  // screen top on sleep logs since the extra fields were added.
+  sheet: { backgroundColor: palette.card, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, maxHeight: '88%' },
+  handle: { width: 40, height: 4, backgroundColor: palette.border, borderRadius: 2, alignSelf: 'center', marginBottom: 10 },
+  title: { fontSize: 15, fontFamily: fonts.sans, fontWeight: '700', color: palette.foreground, textAlign: 'center', marginBottom: 10 },
   infoPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12,
   },
-  infoLabel: { fontSize: 14, fontFamily: fonts.bodyBold, fontWeight: '700', color: palette.foreground },
-  infoDetail: { fontSize: 12, fontFamily: fonts.body, color: palette.mutedForeground, marginTop: 2 },
+  infoLabel: { fontSize: 13, fontFamily: fonts.bodyBold, fontWeight: '700', color: palette.foreground },
+  infoDetail: { fontSize: 11, fontFamily: fonts.body, color: palette.mutedForeground, marginTop: 1 },
   label: { fontSize: 12, fontFamily: fonts.bodyBold, fontWeight: '700', color: palette.mutedForeground, marginBottom: 6 },
   input: {
     backgroundColor: palette.card, borderRadius: radius.lg, paddingHorizontal: 14, paddingVertical: 12,
