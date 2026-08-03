@@ -1469,7 +1469,7 @@ export default function HomeScreen() {
                       dragging && styles.logButtonDragging,
                     ]}
                   >
-                    <View style={styles.logBadge}>
+                    <View style={[styles.logBadge, isDark && { backgroundColor: colors.cardAlt, shadowOpacity: 0 }]}>
                       <GripVertical size={20} color={C.gray400} strokeWidth={2} />
                     </View>
                     <Text
@@ -1502,7 +1502,7 @@ export default function HomeScreen() {
                 disabled={createLogMutation.isPending}
                 activeOpacity={0.85}
               >
-                <View style={styles.logBadge}>
+                <View style={[styles.logBadge, isDark && { backgroundColor: colors.cardAlt, shadowOpacity: 0 }]}>
                   <LogIcon
                     type={btn.type}
                     size={20}
@@ -1546,7 +1546,7 @@ export default function HomeScreen() {
                     disabled={reorderMode || createLogMutation.isPending}
                     activeOpacity={reorderMode ? 1 : 0.85}
                   >
-                    <View style={styles.logBadge}>
+                    <View style={[styles.logBadge, isDark && { backgroundColor: colors.cardAlt, shadowOpacity: 0 }]}>
                       {reorderMode ? (
                         <GripVertical size={20} color={C.gray400} strokeWidth={2} />
                       ) : (
@@ -1815,7 +1815,7 @@ export default function HomeScreen() {
                         { backgroundColor: sw.soft, borderColor: sw.bord },
                       ]}
                     >
-                      <View style={styles.logBadge}>
+                      <View style={[styles.logBadge, isDark && { backgroundColor: colors.cardAlt, shadowOpacity: 0 }]}>
                         <CustomButtonIcon icon={newBtnIcon} size={20} strokeWidth={2.5} color={sw.tint} />
                       </View>
                       <Text style={[styles.logLabel, { color: sw.tint }]} numberOfLines={1}>

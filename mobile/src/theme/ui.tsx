@@ -24,24 +24,29 @@ import {
   TextStyle,
 } from 'react-native';
 import { palette, fonts, radius, shadows } from './tokens';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ── Text ─────────────────────────────────────────────────────────────────────
 // Web: body uses Nunito (--font-body); headings use M PLUS Rounded 1c (--font-sans)
+// All text primitives pick their color from useTheme() so screens in dark mode
+// get near-white text without every caller having to override manually.
 
 export function Text({ style, ...p }: TextProps) {
-  return <RNText style={[styles.body, style]} {...p} />;
+  const { colors } = useTheme();
+  return <RNText style={[styles.body, { color: colors.text }, style]} {...p} />;
 }
 
 export function Title({
   style,
   ...p
 }: TextProps) {
-  // web h1..h6: font-sans, font-bold, tracking-tight, text-foreground/90
-  return <RNText style={[styles.title, style]} {...p} />;
+  const { colors } = useTheme();
+  return <RNText style={[styles.title, { color: colors.text }, style]} {...p} />;
 }
 
 export function Muted({ style, ...p }: TextProps) {
-  return <RNText style={[styles.muted, style]} {...p} />;
+  const { colors } = useTheme();
+  return <RNText style={[styles.muted, { color: colors.textMuted }, style]} {...p} />;
 }
 
 // ── Screen container ─────────────────────────────────────────────────────────
@@ -57,10 +62,11 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors } = useTheme();
   if (scroll) {
     return (
       <ScrollView
-        style={[styles.screen, style]}
+        style={[styles.screen, { backgroundColor: colors.background }, style]}
         contentContainerStyle={[styles.screenContent, contentStyle]}
         showsVerticalScrollIndicator={false}
       >
@@ -68,14 +74,15 @@ export function Screen({
       </ScrollView>
     );
   }
-  return <View style={[styles.screen, styles.screenContent, style]}>{children}</View>;
+  return <View style={[styles.screen, styles.screenContent, { backgroundColor: colors.background }, style]}>{children}</View>;
 }
 
 // ── Card (web: shadcn Card) ──────────────────────────────────────────────────
 
 export function Card({ style, children, ...p }: ViewProps) {
+  const { colors } = useTheme();
   return (
-    <View style={[styles.card, style]} {...p}>
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, style]} {...p}>
       {children}
     </View>
   );
