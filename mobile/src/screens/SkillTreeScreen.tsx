@@ -32,6 +32,7 @@ import { useChildStore } from '../store/childStore';
 import type { RootStackParamList } from '../navigation';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Card, Text, Title, Muted } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../components/Toast';
 import {
   TEAM_SKILL_LEVELS,
@@ -54,6 +55,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export default function SkillTreeScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useAuthStore();
+  const { isDark, colors } = useTheme();
   const familyId = user?.familyId ?? 'default';
   const userId = user?.role ?? 'papa';
   const activeChild = useChildStore((s) => s.activeChild)();
@@ -134,7 +136,7 @@ export default function SkillTreeScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, isDark && { backgroundColor: colors.background }]}>
       {/* ── Header (sticky-ish; sits at top of the ScrollView on mobile) ── */}
       <View style={styles.header}>
         <TouchableOpacity
