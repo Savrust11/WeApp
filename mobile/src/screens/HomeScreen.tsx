@@ -1085,7 +1085,7 @@ export default function HomeScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, isDark && { backgroundColor: colors.background }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* 1. Header (web-parity component) */}
