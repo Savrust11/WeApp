@@ -1228,10 +1228,17 @@ export default function HomeScreen() {
           <View
             style={[
               styles.nextFeedCard,
+              // Origin dark: bg-pink-950/60 / bg-amber-950/60 with pink-800 / amber-800 borders
               isOverdue
-                ? { backgroundColor: C.pink50, borderColor: C.pink200 }
+                ? isDark
+                  ? { backgroundColor: '#500724CC', borderColor: '#9D174D' }
+                  : { backgroundColor: C.pink50, borderColor: C.pink200 }
                 : isSoon
-                ? { backgroundColor: C.amber50, borderColor: C.amber100 }
+                ? isDark
+                  ? { backgroundColor: '#451A03CC', borderColor: '#92400E' }
+                  : { backgroundColor: C.amber50, borderColor: C.amber100 }
+                : isDark
+                ? { backgroundColor: '#50072499', borderColor: '#831843' }
                 : { backgroundColor: '#FDF2F899', borderColor: C.pink100 },
             ]}
           >
@@ -1274,15 +1281,27 @@ export default function HomeScreen() {
         );
       })()}
 
-      {/* 5. WAKE WINDOW card — web Home.tsx:543-629 (purple=urgent / indigo=warning|info) */}
+      {/* 5. WAKE WINDOW card — web Home.tsx:543-629 (purple=urgent / indigo=warning|info)
+              Dark values ported from origin dark: classes:
+                urgent bg → bg-purple-950/60  #3B076499
+                warning  → bg-indigo-950/60   #1E1B4B99
+                info     → bg-indigo-950/50   #1E1B4B80
+                urgent border → dark:border-purple-800  #6B21A8
+                warning/info border → dark:border-indigo-800  #3730A3 */}
       {lastSleepLog && !isSleeping && !wakeHidden && (
         <View
           style={[
             styles.wakeCard,
             wakeWindowAlert?.level === 'urgent'
-              ? { backgroundColor: '#FAF5FFCC', borderColor: C.purple200 }
+              ? isDark
+                ? { backgroundColor: '#3B076499', borderColor: '#6B21A8' }
+                : { backgroundColor: '#FAF5FFCC', borderColor: C.purple200 }
               : wakeWindowAlert?.level === 'warning'
-              ? { backgroundColor: '#EEF2FFCC', borderColor: C.indigo200 }
+              ? isDark
+                ? { backgroundColor: '#1E1B4B99', borderColor: '#3730A3' }
+                : { backgroundColor: '#EEF2FFCC', borderColor: C.indigo200 }
+              : isDark
+              ? { backgroundColor: '#1E1B4B80', borderColor: '#3730A3' }
               : { backgroundColor: '#FFFFFF99', borderColor: C.indigo100 },
           ]}
         >
@@ -1331,10 +1350,10 @@ export default function HomeScreen() {
               style={[
                 styles.napBox,
                 wakeWindowAlert?.level === 'urgent'
-                  ? { backgroundColor: '#F3E8FF99' }
+                  ? isDark ? { backgroundColor: '#581C8766' } : { backgroundColor: '#F3E8FF99' }
                   : wakeWindowAlert?.level === 'warning'
-                  ? { backgroundColor: '#E0E7FF99' }
-                  : { backgroundColor: '#EEF2FFCC' },
+                  ? isDark ? { backgroundColor: '#31278166' } : { backgroundColor: '#E0E7FF99' }
+                  : isDark ? { backgroundColor: '#1E1B4B99' } : { backgroundColor: '#EEF2FFCC' },
               ]}
             >
               <View style={styles.napRow}>
