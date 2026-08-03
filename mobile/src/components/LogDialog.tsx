@@ -43,6 +43,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
+import { useTheme } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
 
@@ -304,6 +305,7 @@ export default function LogDialog({
   // Navigation for in-dialog affordances (e.g. 食材チェックリスト button
   // inside the 離乳食 dialog — matches web ActionButtons.tsx:2267-2275).
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { isDark, colors } = useTheme();
 
   // ── Assignee (担当者 複数選択可) ─────────────────────────────────────────────
   const [assignees, setAssignees] = useState<Set<'self' | 'partner' | 'other'>>(new Set(['self']));
@@ -2114,11 +2116,11 @@ export default function LogDialog({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.overlay}>
-        <View style={s.sheet}>
+        <View style={[s.sheet, isDark && { backgroundColor: colors.card }]}>
           <View style={s.handle} />
           <View style={s.titleRow}>
-            <TitleIcon size={22} color={palette.primary} strokeWidth={2.5} />
-            <Text style={s.title}>{titleText}</Text>
+            <TitleIcon size={22} color={isDark ? colors.primary : palette.primary} strokeWidth={2.5} />
+            <Text style={[s.title, isDark && { color: colors.text }]}>{titleText}</Text>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">

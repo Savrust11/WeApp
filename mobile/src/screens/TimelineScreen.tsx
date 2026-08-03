@@ -1364,7 +1364,7 @@ export default function TimelineScreen() {
   }
 
   return (
-    <View style={t.container}>
+    <View style={[t.container, isDark && { backgroundColor: colors.background }]}>
       {/* ── WeYu Header (BABY / name / 担当中 / gear) ──────────────────────── */}
       <WeHeader />
 
@@ -1474,7 +1474,7 @@ export default function TimelineScreen() {
       {/* ── 24-hour vertical timeline (swipeable) ───────────────────────── */}
       <View style={{ flex: 1 }} {...panResponder.panHandlers}>
         <View style={t.timelineCardWrap}>
-          <View style={t.timelineCard}>
+          <View style={[t.timelineCard, isDark && { backgroundColor: colors.card }]}>
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ height: TOTAL_HEIGHT }}

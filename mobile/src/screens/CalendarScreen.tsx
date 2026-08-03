@@ -46,6 +46,7 @@ import {
 } from '../api/events';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text, Title } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 import { LogIcon, getLogVisual } from '../theme/logIcons';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -163,6 +164,7 @@ export default function CalendarScreen() {
   const familyId    = user?.familyId ?? 'default';
   const userId      = String(user?.id ?? '');
   const queryClient = useQueryClient();
+  const { isDark, colors } = useTheme();
 
   const today = useMemo(() => new Date(), []);
 
@@ -549,10 +551,10 @@ export default function CalendarScreen() {
   const previewColor = getEventColorDef(fColor);
 
   return (
-    <View style={st.container}>
+    <View style={[st.container, isDark && { backgroundColor: colors.background }]}>
       {/* Single page scroll — web: whole Calendar page scrolls under <Header /> */}
       <ScrollView
-        style={st.pageScroll}
+        style={[st.pageScroll, isDark && { backgroundColor: colors.background }]}
         contentContainerStyle={st.pageContent}
         showsVerticalScrollIndicator={false}
       >
