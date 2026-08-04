@@ -200,7 +200,7 @@ export default function SettingsScreen() {
   const { user, setUser, logout: storeLogout } = useAuthStore();
   const { children, activeChildId, setChildren, setActiveChildId } = useChildStore();
   const queryClient = useQueryClient();
-  const { mode: themeMode, setMode: setThemeMode, isDark } = useTheme();
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
 
   const familyId = user?.familyId ?? '';
 
