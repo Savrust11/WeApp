@@ -54,6 +54,7 @@ import {
 } from 'lucide-react-native';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Card, Text, Title } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ─── Step / FeatureCard / Hero (web: Tips.tsx Step + FeatureCard + hero block) ──
 
@@ -519,6 +520,7 @@ const TABS = [
 ] as const;
 
 export default function TipsScreen() {
+  const { isDark, colors } = useTheme();
   const [activeTab, setActiveTab] = useState<string>('whatsnew');
 
   const ActiveComponent =
@@ -531,7 +533,7 @@ export default function TipsScreen() {
           : CryingRescue;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       {/* Header banner — web Tips: bg-purple-900 centered header */}
       <View style={styles.header}>
         <Text style={styles.headerEyebrow}>We育</Text>

@@ -34,6 +34,7 @@ import {
 } from 'lucide-react-native';
 import { palette, fonts, radius } from '../theme/tokens';
 import { Card, CardContent, Button, Badge, Text, Title, Muted } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ShortcutDef {
   label: string;
@@ -90,6 +91,7 @@ function showAlert(title: string, message: string) {
 }
 
 export default function ShortcutsScreen() {
+  const { isDark, colors } = useTheme();
   const [testResult, setTestResult] = useState<string | null>(null);
 
   const isIOS = Platform.OS === 'ios';
@@ -130,7 +132,7 @@ export default function ShortcutsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, isDark && { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.headerCard}>
         <View style={styles.headerTitleRow}>

@@ -21,6 +21,7 @@ import { useAuthStore } from '../store/authStore';
 import type { MamaHealthRecord, MamaMedicineRecord } from '@shared/schema';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Card, Button, Text, Title, Muted } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -104,6 +105,7 @@ function ToggleRow({
 // ── Main Screen ────────────────────────────────────────────────────────────
 
 export default function MamaHealthScreen() {
+  const { isDark, colors } = useTheme();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const today = toDateString(new Date());
@@ -218,7 +220,7 @@ export default function MamaHealthScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>

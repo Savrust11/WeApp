@@ -45,6 +45,7 @@ import { logRecordedToast } from '../utils/logToast';
 import type { RootStackParamList } from '../navigation';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -70,6 +71,7 @@ const FEEDING_LABEL: Record<string, string> = {
 const FEEDING_TYPES = new Set(Object.keys(FEEDING_LABEL));
 
 export default function AlarmScreen() {
+  const { isDark, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const { user } = useAuthStore();
   const familyId = user?.familyId ?? 'default';
@@ -286,7 +288,7 @@ export default function AlarmScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       {/* Header — web: ← + 泣き止みレスキュー */}
       <View style={styles.header}>
         <Pressable

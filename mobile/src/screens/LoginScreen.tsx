@@ -20,6 +20,7 @@ import { syncSharedData } from '../utils/sharedData';
 import type { RootStackParamList } from '../navigation';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Button, Text, Title, Muted } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Required for expo-auth-session to close the browser on redirect (native only).
 if (Platform.OS !== 'web') {
@@ -35,6 +36,7 @@ const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
 export default function LoginScreen() {
+  const { isDark, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const { setUser } = useAuthStore();
   const [lineLoading, setLineLoading] = useState(false);
@@ -225,7 +227,7 @@ export default function LoginScreen() {
   const handleGuestLogin = () => navigation.navigate('Onboarding');
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       {/* Logo (web Onboarding: gradient circle + Grape, brand title + tagline) */}
       <View style={styles.logoArea}>
         <View style={styles.logoBadge}>

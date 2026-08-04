@@ -24,6 +24,7 @@ import type { Log } from '../api/logs';
 import type { Child } from '../api/children';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text, Title } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ─── Tab definitions ─────────────────────────────────────────────────────────
 
@@ -511,6 +512,7 @@ function ItemRow({ item }: { item: ReviewItem }) {
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 export default function ReviewScreen() {
+  const { isDark, colors } = useTheme();
   const { user }        = useAuthStore();
   const { activeChildId, activeChild } = useChildStore();
   const navigation      = useNavigation<any>();
@@ -612,7 +614,7 @@ export default function ReviewScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       {/* Sticky header — web LogReview: back arrow + (title + baby subtitle) + 思い出PDF */}
       <View style={styles.topBar}>
         <TouchableOpacity

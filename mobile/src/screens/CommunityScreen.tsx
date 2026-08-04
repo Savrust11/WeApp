@@ -23,6 +23,7 @@ import { useAuthStore } from '../store/authStore';
 import { apiGet, apiPost, apiDelete } from '../api/client';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Card, CardContent, Button, Badge, Text, Title, Muted } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 import type { RootStackParamList } from '../navigation';
 
 // Soft purple tones used by the main WeTabBar — kept identical so the
@@ -127,6 +128,7 @@ interface Post {
 type Tab = 'rooms' | 'joined' | 'recommended';
 
 export default function CommunityScreen() {
+  const { isDark, colors } = useTheme();
   const { user } = useAuthStore();
   const uniqueUserId = user ? `${user.familyId}_${user.role}` : '';
   const queryClient = useQueryClient();
@@ -281,7 +283,7 @@ export default function CommunityScreen() {
 
   if (!profile) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
         <ScrollView contentContainerStyle={styles.setupContainer} keyboardShouldPersistTaps="handled">
           <Title style={styles.setupTitle}>コミュニティに参加しよう</Title>
           <Muted style={styles.setupDesc}>
@@ -350,7 +352,7 @@ export default function CommunityScreen() {
   if (selectedRoom) {
     const isJoined = joinedRooms.some((r) => r.id === selectedRoom.id);
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
         <View style={styles.roomHeader}>
           <TouchableOpacity onPress={() => setSelectedRoom(null)} style={styles.backBtnWrap}>
             <ArrowLeft size={20} color={palette.primary} strokeWidth={2.5} />
@@ -478,7 +480,7 @@ export default function CommunityScreen() {
   const ageRooms = allRooms.filter((r) => r.type === 'age');
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <Title style={styles.headerTitle}>コミュニティ</Title>
         <TouchableOpacity onPress={() => {

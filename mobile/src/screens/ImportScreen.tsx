@@ -24,6 +24,7 @@ import { useChildStore } from '../store/childStore';
 import { getBaseUrl } from '../api/client';
 import { palette, fonts, radius } from '../theme/tokens';
 import { Card, CardContent, Button, Text, Title, Muted } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface PreviewEntry {
   dateTime: string;
@@ -63,6 +64,7 @@ function showAlert(title: string, message: string) {
 }
 
 export default function ImportScreen() {
+  const { isDark, colors } = useTheme();
   const { user } = useAuthStore();
   const { activeChildId } = useChildStore();
 
@@ -166,7 +168,7 @@ export default function ImportScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, isDark && { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       {/* Step 1: Paste */}
       {step === 'paste' && (
         <>
