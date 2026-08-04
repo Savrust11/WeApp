@@ -1109,7 +1109,7 @@ export default function HomeScreen() {
       {/* 2. すくすく成長中 card — web Home.tsx:265-295 */}
       <TouchableOpacity
         activeOpacity={0.85}
-        style={styles.growthCard}
+        style={[styles.growthCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
         onPress={() => child?.id != null && navigation.navigate('ChildProfile', { childId: child.id })}
       >
         <View style={styles.growthTopRow}>
@@ -1137,7 +1137,7 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       {/* 3. TODAY'S SUMMARY card — web Home.tsx:344-451 (5-stat infant row) */}
-      <View style={styles.summaryCard}>
+      <View style={[styles.summaryCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={styles.uppercaseLabel}>Today's Summary</Text>
         <View style={styles.summaryRow}>
           {/* 睡眠 — web: bg-indigo-50 / Moon text-indigo-500 */}
@@ -1708,7 +1708,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           key={f.titleText}
           activeOpacity={0.85}
-          style={[styles.featureCard2, { backgroundColor: f.cardBg, borderColor: f.border }]}
+          style={[styles.featureCard2, { backgroundColor: f.cardBg, borderColor: f.border }, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
           onPress={f.onPress}
         >
           <View style={[styles.featureBadge, { backgroundColor: f.badge }]}>

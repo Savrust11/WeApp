@@ -375,7 +375,7 @@ export default function CalendarScreen() {
   };
 
   const renderMonthGrid = () => (
-    <View style={st.calCard}>
+    <View style={[st.calCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={st.dayLabels}>
         {DAY_LABELS.map((d, i) => (
           <Text key={d} style={[st.dayLabel, i === 0 ? st.sunLabel : i === 6 ? st.satLabel : null]}>{d}</Text>
@@ -453,14 +453,14 @@ export default function CalendarScreen() {
   const renderTimeline = () => {
     if (timelineItems.length === 0) {
       return (
-        <View style={st.emptyCard}>
+        <View style={[st.emptyCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
           <CalendarDays size={40} color={palette.border} strokeWidth={1.5} />
           <Text style={st.emptyText}>この日の記録はありません</Text>
         </View>
       );
     }
     return (
-      <View style={st.timelineCard}>
+      <View style={[st.timelineCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
         {timelineItems.map((item, idx) => {
           const divider = idx > 0;
           if (item.kind === 'event' && item.event) {

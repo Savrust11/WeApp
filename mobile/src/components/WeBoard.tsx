@@ -15,6 +15,7 @@ import { MessageSquare, Send, ChevronUp, ChevronDown } from 'lucide-react-native
 import { apiGet, apiPost } from '../api/client';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface WeBoardMessage {
   id: number;
@@ -63,6 +64,7 @@ function formatTime(iso: string): string {
 }
 
 export default function WeBoard({ familyId, userId }: WeBoardProps) {
+  const { isDark, colors } = useTheme();
   const [inputText, setInputText] = useState('');
   // Web parity (WeBoard.tsx:26): collapsed shows the 3 most recent,
   // expanded shows up to 10. The toggle button only renders when there
@@ -122,7 +124,7 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={80}
     >
-      <View style={styles.card}>
+      <View style={[styles.card, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
         {/* Card header — web: icon box + title/subtitle + optional expand
             toggle on the right. Toggle only appears when > 3 messages,
             same as web (WeBoard.tsx:68). */}
