@@ -134,7 +134,7 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
               <MessageSquare size={16} color={PURPLE_600} strokeWidth={2.5} />
             </View>
             <View>
-              <Text style={styles.cardTitle}>Weボード</Text>
+              <Text style={[styles.cardTitle, isDark && { color: colors.text }]}>Weボード</Text>
               <Text style={styles.cardSubtitle}>パートナーへのひとこと</Text>
             </View>
           </View>
@@ -234,7 +234,7 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
           {/* Input row */}
           <View style={styles.inputRow}>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, isDark && { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
               placeholder="メッセージを入力..."
               placeholderTextColor={PURPLE_400}
               value={inputText}
