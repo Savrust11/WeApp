@@ -134,13 +134,13 @@ async function saveHiddenSet(familyId: string, childId: number, set: Set<string>
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function FoodTrackerScreen() {
+  const { isDark, colors } = useTheme();
   const { user } = useAuthStore();
   const { activeChildId } = useChildStore();
   const activeChild = useChildStore((s) => s.activeChild());
   const familyId = user?.familyId ?? '';
   const queryClient = useQueryClient();
   const childId = activeChildId ?? 0;
-  const { isDark } = useTheme();
 
   // Filter / search
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -570,7 +570,7 @@ export default function FoodTrackerScreen() {
         onRequestClose={closeSheet}
       >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closeSheet}>
-          <TouchableOpacity style={styles.sheetContainer} activeOpacity={1}>
+          <TouchableOpacity style={[styles.sheetContainer, isDark && { backgroundColor: colors.card }]} activeOpacity={1}>
             <View style={styles.sheetHandle} />
             <Title style={styles.sheetTitle}>{sheetItem?.name}</Title>
 
@@ -808,7 +808,7 @@ export default function FoodTrackerScreen() {
           activeOpacity={1}
           onPress={() => setShowAddModal(false)}
         >
-          <TouchableOpacity style={styles.sheetContainer} activeOpacity={1}>
+          <TouchableOpacity style={[styles.sheetContainer, isDark && { backgroundColor: colors.card }]} activeOpacity={1}>
             <View style={styles.sheetHandle} />
             <Title style={styles.sheetTitle}>カスタム食材を追加</Title>
             <Muted style={styles.modalLabel}>食材名</Muted>
@@ -863,7 +863,7 @@ export default function FoodTrackerScreen() {
           activeOpacity={1}
           onPress={() => setEditCustomOpen(false)}
         >
-          <TouchableOpacity style={styles.sheetContainer} activeOpacity={1}>
+          <TouchableOpacity style={[styles.sheetContainer, isDark && { backgroundColor: colors.card }]} activeOpacity={1}>
             <View style={styles.sheetHandle} />
             <Title style={styles.sheetTitle}>食材を編集</Title>
             <Muted style={styles.modalLabel}>食材名</Muted>

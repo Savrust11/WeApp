@@ -41,6 +41,7 @@ import {
   TEAM_POWER_DESC,
 } from '../utils/pointsManager';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   Screen,
   Card,
@@ -116,6 +117,7 @@ function getUserLabel(role: 'papa' | 'mama' | 'other'): string {
 }
 
 export default function ShopScreen() {
+  const { isDark, colors } = useTheme();
   const { user } = useAuthStore();
   const { children, activeChildId } = useChildStore();
   const navigation = useNavigation<any>();
@@ -764,7 +766,7 @@ export default function ShopScreen() {
       {/* ── Add Custom Coupon Modal ───────────────────────────────────────────── */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowAddModal(false)}>
-          <TouchableOpacity style={styles.sheet} activeOpacity={1}>
+          <TouchableOpacity style={[styles.sheet, isDark && { backgroundColor: colors.card }]} activeOpacity={1}>
             <View style={styles.sheetHandle} />
             <Title style={styles.sheetTitle}>カスタムクーポン作成</Title>
 

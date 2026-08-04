@@ -78,6 +78,7 @@ import { useToast } from '../components/Toast';
 import { logRecordedToast } from '../utils/logToast';
 import { palette, fonts, radius } from '../theme/tokens';
 import { Screen, Card, Button, Text, Title } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ─────────────────────────────────────────────
 // Types
@@ -227,6 +228,7 @@ function donutSlice(
 // ─────────────────────────────────────────────
 
 export default function DashboardScreen(): React.ReactElement {
+  const { isDark, colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const familyId = user?.familyId ?? '';
   const userRole: Performer = user?.role ?? 'papa';
@@ -720,7 +722,7 @@ export default function DashboardScreen(): React.ReactElement {
         onRequestClose={() => setChoreDialogOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, isDark && { backgroundColor: colors.card }]}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Title style={styles.modalTitle}>名もなき育児を記録</Title>
@@ -817,7 +819,7 @@ export default function DashboardScreen(): React.ReactElement {
         onRequestClose={() => setAddCustomDialogOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, isDark && { backgroundColor: colors.card }]}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Title style={styles.modalTitle}>カスタム項目を追加</Title>

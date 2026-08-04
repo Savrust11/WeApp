@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { palette, fonts, radius } from '../theme/tokens';
+import { useTheme } from '../contexts/ThemeContext';
 
 const PURPLE_500 = '#A855F7';
 const PURPLE_100 = '#F3E8FF';
@@ -58,6 +59,7 @@ export default function DatePickerModal({
   visible, initialDate, minDate, maxDate,
   onConfirm, onClose, title = '日付を選ぶ',
 }: Props) {
+  const { isDark, colors } = useTheme();
   // Anchor: parse initial or fall back to a sensible baby-birthday default (1 year ago).
   const nowRef = useMemo(() => new Date(), []);
   const defaultAnchor = useMemo(() => {
@@ -114,7 +116,7 @@ export default function DatePickerModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity style={styles.card} activeOpacity={1} onPress={() => { /* swallow */ }}>
+        <TouchableOpacity style={[styles.card, isDark && { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} activeOpacity={1} onPress={() => { /* swallow */ }}>
           <Text style={styles.title}>{title}</Text>
 
           {/* Month nav bar */}

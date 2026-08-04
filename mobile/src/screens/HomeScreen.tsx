@@ -1745,7 +1745,7 @@ export default function HomeScreen() {
       {/* ── Custom button add modal ───────────────────────────────────────────── */}
       <Modal visible={showCustomModal} transparent animationType="slide" onRequestClose={closeCustomModal}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, isDark && { backgroundColor: colors.card }]}>
             <View style={styles.sheetHandle} />
             <View style={styles.modalHeaderRow}>
               <Text style={styles.modalTitle}>カスタムボタンを追加</Text>

@@ -195,6 +195,7 @@ function confirmAction(title: string, message: string, onConfirm: () => void) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
+  const { isDark, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const { user, setUser, logout: storeLogout } = useAuthStore();
   const { children, activeChildId, setChildren, setActiveChildId } = useChildStore();
@@ -1303,7 +1304,7 @@ export default function SettingsScreen() {
       {/* ── Add Child Modal (mobile-only — preserved, matches ChildProfile) ── */}
       <Modal visible={showAddChild} transparent animationType="slide" onRequestClose={() => setShowAddChild(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAddChild(false)}>
-          <TouchableOpacity style={styles.sheetContainer} activeOpacity={1}>
+          <TouchableOpacity style={[styles.sheetContainer, isDark && { backgroundColor: colors.card }]} activeOpacity={1}>
             <View style={styles.sheetHandle} />
             <Title style={styles.sheetTitle}>お子さまを追加</Title>
 

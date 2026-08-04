@@ -170,7 +170,7 @@ export default function ChildProfileScreen() {
   const { user } = useAuthStore();
   const familyId = user?.familyId ?? '';
   const userRole = user?.role === 'mama' ? 'mama' : 'papa';
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
   const childId = route.params?.childId as number;
   const queryClient = useQueryClient();
   const setActiveChildId = useChildStore((s) => s.setActiveChildId);
@@ -429,7 +429,7 @@ export default function ChildProfileScreen() {
           <View>
             <Text style={styles.label}>なまえ</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isDark && { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
               value={name}
               onChangeText={setName}
               placeholder="お子さまの名前"
@@ -443,13 +443,14 @@ export default function ChildProfileScreen() {
             <Button
               variant="outline"
               onPress={() => setShowBirthdayPicker(true)}
-              style={styles.datePickerBtn}
+              style={[styles.datePickerBtn, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
             >
               <View style={styles.datePickerBtnInner}>
                 <CalendarIcon size={16} color={palette.mutedForeground} strokeWidth={2} />
                 <Text style={[
                   styles.datePickerBtnText,
                   !birthday && { color: palette.mutedForeground },
+                  isDark && birthday && { color: colors.text },
                 ]}>
                   {birthday || '日付を選ぶ'}
                 </Text>

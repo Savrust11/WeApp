@@ -600,7 +600,7 @@ export default function CalendarScreen() {
       {/* ── Add event sheet (web: bottom sheet, single scroll) ──────────── */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <View style={st.modalOverlay}>
-          <View style={st.modalSheet}>
+          <View style={[st.modalSheet, isDark && { backgroundColor: colors.card }]}>
             <View style={st.sheetHandle} />
             <View style={st.modalHeader}>
               <Title style={st.modalTitle}>予定を追加</Title>

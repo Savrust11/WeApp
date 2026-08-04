@@ -240,7 +240,7 @@ export default function AlarmScreen() {
   if (!started) {
     return (
       <View style={styles.modalRoot}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.modalIconWrap}>
             <Text style={styles.modalIconEmoji}>🚨</Text>
           </View>
