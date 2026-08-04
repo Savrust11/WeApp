@@ -1623,7 +1623,7 @@ export default function HomeScreen() {
 
       {/* 8. 24時間タイムライン entry — web Home.tsx:527-544 */}
       <TouchableOpacity
-        style={styles.timelineCard}
+        style={[styles.timelineCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
         activeOpacity={0.85}
         onPress={() =>
           (navigation as any).navigate('Timeline')
@@ -1640,7 +1640,7 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       {/* 9. TEAM POWER / TOTAL POINTS — web Home.tsx:546-561 */}
-      <View style={styles.teamPowerCard}>
+      <View style={[styles.teamPowerCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Zap size={22} color={C.purple500} strokeWidth={2.5} />
           <View>
