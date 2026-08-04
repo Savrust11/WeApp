@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Home, CalendarDays, Clock, Gift, Settings, Grape } from 'lucide-react-native';
 import { palette, fonts } from '../theme/tokens';
+import { useTheme } from '../contexts/ThemeContext';
 
 const ICONS: Record<string, React.ComponentType<any>> = {
   Home,
@@ -38,9 +39,10 @@ const BORDER = '#EDE7F6';             // border-purple-100
 
 export default function WeTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { isDark, colors } = useTheme();
 
   return (
-    <View style={[styles.nav, { paddingBottom: Math.max(insets.bottom, 6) }]}>
+    <View style={[styles.nav, { paddingBottom: Math.max(insets.bottom, 6) }, isDark && { backgroundColor: colors.card, borderTopColor: colors.border }]}>
       {/* Brand footer (web: data-testid="brand-footer") */}
       <View style={styles.brandRow}>
         <Grape size={10} color={PURPLE_300} strokeWidth={2} />
