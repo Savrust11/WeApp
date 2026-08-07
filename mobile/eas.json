@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 16.0.0"
+    "version": ">= 0.50.0"
   },
   "build": {
     "development": {
@@ -14,11 +14,13 @@
     },
     "testflight": {
       "distribution": "store",
-      "channel": "testflight",
-      "autoIncrement": true
+      "channel": "testflight"
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "EXPO_USE_PRECOMPILED_MODULES": "0"
+      }
     }
   },
   "submit": {

@@ -24,24 +24,45 @@ import {
   TextStyle,
 } from 'react-native';
 import { palette, fonts, radius, shadows } from './tokens';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ── Text ─────────────────────────────────────────────────────────────────────
 // Web: body uses Nunito (--font-body); headings use M PLUS Rounded 1c (--font-sans)
+// All text primitives pick their color from useTheme() so screens in dark mode
+// get near-white text without every caller having to override manually.
+
+// Force-override the caller's `color` in dark mode when it's set to one of
+// the light-mode "dark text" palette values. This makes ~533 hardcoded
+// `color: palette.foreground` / `palette.mutedForeground` refs across the
+// app auto-flip to near-white in dark mode without editing each one.
+// Explicit colors like '#EF4444' (errors, badges) still win.
+function darkOverride(isDark: boolean, colors: { text: string; textMuted: string }, style: any) {
+  if (!isDark) return null;
+  const flat = Array.isArray(style)
+    ? Object.assign({}, ...style.filter(Boolean))
+    : (style ?? {});
+  const c = (flat as any).color;
+  if (c === palette.foreground || c === palette.cardForeground) return { color: colors.text };
+  if (c === palette.mutedForeground) return { color: colors.textMuted };
+  return null;
+}
 
 export function Text({ style, ...p }: TextProps) {
-  return <RNText style={[styles.body, style]} {...p} />;
+  const { isDark, colors } = useTheme();
+  return <RNText style={[styles.body, { color: colors.text }, style, darkOverride(isDark, colors, style)]} {...p} />;
 }
 
 export function Title({
   style,
   ...p
 }: TextProps) {
-  // web h1..h6: font-sans, font-bold, tracking-tight, text-foreground/90
-  return <RNText style={[styles.title, style]} {...p} />;
+  const { isDark, colors } = useTheme();
+  return <RNText style={[styles.title, { color: colors.text }, style, darkOverride(isDark, colors, style)]} {...p} />;
 }
 
 export function Muted({ style, ...p }: TextProps) {
-  return <RNText style={[styles.muted, style]} {...p} />;
+  const { isDark, colors } = useTheme();
+  return <RNText style={[styles.muted, { color: colors.textMuted }, style, darkOverride(isDark, colors, style)]} {...p} />;
 }
 
 // ── Screen container ─────────────────────────────────────────────────────────
@@ -57,10 +78,11 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors } = useTheme();
   if (scroll) {
     return (
       <ScrollView
-        style={[styles.screen, style]}
+        style={[styles.screen, { backgroundColor: colors.background }, style]}
         contentContainerStyle={[styles.screenContent, contentStyle]}
         showsVerticalScrollIndicator={false}
       >
@@ -68,14 +90,15 @@ export function Screen({
       </ScrollView>
     );
   }
-  return <View style={[styles.screen, styles.screenContent, style]}>{children}</View>;
+  return <View style={[styles.screen, styles.screenContent, { backgroundColor: colors.background }, style]}>{children}</View>;
 }
 
 // ── Card (web: shadcn Card) ──────────────────────────────────────────────────
 
 export function Card({ style, children, ...p }: ViewProps) {
+  const { colors } = useTheme();
   return (
-    <View style={[styles.card, style]} {...p}>
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, style]} {...p}>
       {children}
     </View>
   );

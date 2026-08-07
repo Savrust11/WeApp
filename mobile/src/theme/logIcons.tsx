@@ -16,6 +16,7 @@ import {
   Pill, Thermometer, Heart, UtensilsCrossed, Droplets, MessageCircle,
   ThumbsUp, Award, GraduationCap, Stethoscope, CalendarCheck, Scissors,
   Hand, GlassWater, Palette, Timer, Pencil, ClipboardList, NotebookPen,
+  Footprints,
 } from 'lucide-react-native';
 
 type IconCmp = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -60,6 +61,7 @@ const MAP: Record<string, V> = {
   thanks:        { icon: Heart,           tint: '#EF4444', soft: '#FEF2F2', bord: '#FEE2E2' }, // red-500
   toilet:        { icon: Droplets,        tint: '#0891B2', soft: '#ECFEFF', bord: '#CFFAFE' }, // cyan-600
   toothbrush:    { icon: Sparkles,        tint: '#06B6D4', soft: '#ECFEFF', bord: '#CFFAFE' }, // cyan-500
+  walk:          { icon: Footprints,      tint: '#16A34A', soft: '#F0FDF4', bord: '#DCFCE7' }, // green-600 (web phases.ts:57)
   words:         { icon: MessageCircle,   tint: '#16A34A', soft: '#F0FDF4', bord: '#DCFCE7' }, // green-600
 
   // ── legacy mobile log-type ids → aliased to WeYu equivalents ──

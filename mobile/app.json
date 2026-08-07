@@ -9,11 +9,11 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/a76dac5d-671d-4b95-be22-d5e4da3bea53",
+      "url": "https://u.expo.dev/004b547b-89ae-4b3e-a077-576ac998d4ea",
       "enabled": true,
       "fallbackToCacheTimeout": 0
     },
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -22,8 +22,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.weyuapp.app",
-      "buildNumber": "1",
+      "bundleIdentifier": "com.weyuapp3.app",
+      "buildNumber": "20",
       "infoPlist": {
         "NSCameraUsageDescription": "写真の記録に使用します",
         "NSPhotoLibraryUsageDescription": "写真の選択に使用します",
@@ -35,7 +35,8 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#7C5CBF"
       },
-      "package": "com.weyuapp.app",
+      "package": "com.weyuapp3.app",
+      "versionCode": 20,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -55,8 +56,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "a76dac5d-671d-4b95-be22-d5e4da3bea53"
+        "projectId": "004b547b-89ae-4b3e-a077-576ac998d4ea"
       }
-    }
+    },
+    "owner": "kumar8080"
   }
 }

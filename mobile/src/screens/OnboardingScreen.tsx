@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   TextInput,
@@ -7,24 +7,18 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
-  Modal,
-  TouchableOpacity,
-  FlatList,
 } from 'react-native';
 import {
   Grape,
   User,
   Crown,
   ChevronRight,
-  ChevronLeft,
   Link2,
   Baby,
   FileText,
   Share2,
   ChartColumn,
   NotebookPen,
-  CalendarDays,
-  X,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../store/authStore';
@@ -57,289 +51,6 @@ function showAlert(title: string, msg: string) {
     Alert.alert(title, msg);
   }
 }
-
-// ─── Date picker (calendar grid + month/year navigation) ─────────────────────
-// Self-contained: no extra dependency required. On web, the native HTML5
-// <input type="date"> is used (browser-native calendar). On iOS/Android,
-// a Modal-based calendar grid is rendered.
-
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
-
-function daysInMonth(year: number, month0: number) {
-  return new Date(year, month0 + 1, 0).getDate();
-}
-
-function pad2(n: number) {
-  return String(n).padStart(2, '0');
-}
-
-function formatYMD(year: number, month0: number, day: number) {
-  return `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
-}
-
-function parseYMD(s: string): { year: number; month0: number; day: number } | null {
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  return { year: +m[1], month0: +m[2] - 1, day: +m[3] };
-}
-
-interface DatePickerFieldProps {
-  value: string;          // 'YYYY-MM-DD' or ''
-  onChange: (v: string) => void;
-  placeholder?: string;
-}
-
-function DatePickerField({ value, onChange, placeholder = '誕生日を選択' }: DatePickerFieldProps) {
-  const [open, setOpen] = useState(false);
-
-  const today = new Date();
-  const parsed = parseYMD(value) ?? {
-    year: today.getFullYear(),
-    month0: today.getMonth(),
-    day: today.getDate(),
-  };
-  const [year, setYear] = useState(parsed.year);
-  const [month0, setMonth0] = useState(parsed.month0);
-
-  const cells = useMemo(() => {
-    const firstWd = new Date(year, month0, 1).getDay();
-    const dim = daysInMonth(year, month0);
-    const arr: (number | null)[] = [];
-    for (let i = 0; i < firstWd; i++) arr.push(null);
-    for (let d = 1; d <= dim; d++) arr.push(d);
-    while (arr.length % 7 !== 0) arr.push(null);
-    return arr;
-  }, [year, month0]);
-
-  const display = value ? value.replace(/-/g, '/') : '';
-
-  // Web → native HTML5 date input (browser-native calendar UI).
-  if (Platform.OS === 'web') {
-    return React.createElement('input', {
-      type: 'date',
-      value: value || '',
-      onChange: (e: any) => onChange(e.target.value || ''),
-      style: {
-        width: '100%',
-        boxSizing: 'border-box',
-        background: palette.card,
-        border: `1px solid ${palette.border}`,
-        borderRadius: 12,
-        padding: '14px',
-        fontSize: 15,
-        color: palette.foreground,
-        fontFamily: fonts.body,
-        outline: 'none',
-      },
-      placeholder,
-    } as any);
-  }
-
-  // Native: tappable field that opens a calendar modal.
-  return (
-    <>
-      <TouchableOpacity
-        style={dpStyles.field}
-        onPress={() => setOpen(true)}
-        activeOpacity={0.7}
-      >
-        <CalendarDays size={18} color={palette.primary} />
-        <Text style={[dpStyles.fieldText, !display && dpStyles.placeholderText]}>
-          {display || placeholder}
-        </Text>
-      </TouchableOpacity>
-
-      <Modal
-        visible={open}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setOpen(false)}
-      >
-        <View style={dpStyles.backdrop}>
-          <View style={dpStyles.sheet}>
-            <View style={dpStyles.sheetHead}>
-              <Text style={dpStyles.sheetTitle}>誕生日を選択</Text>
-              <TouchableOpacity onPress={() => setOpen(false)}>
-                <X size={20} color={palette.mutedForeground} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={dpStyles.navRow}>
-              <TouchableOpacity
-                onPress={() => {
-                  if (month0 === 0) { setYear(year - 1); setMonth0(11); }
-                  else setMonth0(month0 - 1);
-                }}
-                style={dpStyles.navBtn}
-              >
-                <ChevronLeft size={20} color={palette.foreground} />
-              </TouchableOpacity>
-              <Text style={dpStyles.navLabel}>{year}年 {month0 + 1}月</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  if (month0 === 11) { setYear(year + 1); setMonth0(0); }
-                  else setMonth0(month0 + 1);
-                }}
-                style={dpStyles.navBtn}
-              >
-                <ChevronRight size={20} color={palette.foreground} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={dpStyles.yearJumpRow}>
-              {[year - 4, year - 2, year, year + 1].map((y) => (
-                <TouchableOpacity
-                  key={y}
-                  style={[dpStyles.yearChip, y === year && dpStyles.yearChipActive]}
-                  onPress={() => setYear(y)}
-                >
-                  <Text style={[dpStyles.yearChipText, y === year && dpStyles.yearChipTextActive]}>
-                    {y}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={dpStyles.weekRow}>
-              {WEEKDAYS.map((w, i) => (
-                <Text
-                  key={w}
-                  style={[
-                    dpStyles.weekLabel,
-                    i === 0 && { color: '#E57373' },
-                    i === 6 && { color: '#64B5F6' },
-                  ]}
-                >
-                  {w}
-                </Text>
-              ))}
-            </View>
-
-            <FlatList
-              data={cells}
-              keyExtractor={(_, i) => String(i)}
-              numColumns={7}
-              scrollEnabled={false}
-              renderItem={({ item, index }) => {
-                if (item === null) return <View style={dpStyles.cell} />;
-                const isSelected =
-                  parsed.year === year && parsed.month0 === month0 && parsed.day === item;
-                const wd = index % 7;
-                return (
-                  <TouchableOpacity
-                    style={[dpStyles.cell, isSelected && dpStyles.cellActive]}
-                    onPress={() => {
-                      onChange(formatYMD(year, month0, item));
-                      setOpen(false);
-                    }}
-                    activeOpacity={0.6}
-                  >
-                    <Text
-                      style={[
-                        dpStyles.cellText,
-                        wd === 0 && { color: '#E57373' },
-                        wd === 6 && { color: '#64B5F6' },
-                        isSelected && dpStyles.cellTextActive,
-                      ]}
-                    >
-                      {item}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-
-            <View style={dpStyles.footerRow}>
-              <TouchableOpacity
-                style={dpStyles.todayBtn}
-                onPress={() => {
-                  const n = new Date();
-                  setYear(n.getFullYear());
-                  setMonth0(n.getMonth());
-                }}
-              >
-                <Text style={dpStyles.todayBtnText}>今月へ</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={dpStyles.clearBtn}
-                onPress={() => { onChange(''); setOpen(false); }}
-              >
-                <Text style={dpStyles.clearBtnText}>クリア</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </>
-  );
-}
-
-const dpStyles = StyleSheet.create({
-  field: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: palette.card, borderRadius: 12,
-    borderWidth: 1, borderColor: palette.border,
-    paddingHorizontal: 14, paddingVertical: 14,
-  },
-  fieldText: { fontSize: 15, color: palette.foreground, fontFamily: fonts.body },
-  placeholderText: { color: palette.mutedForeground },
-
-  backdrop: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center', alignItems: 'center', padding: 20,
-  },
-  sheet: {
-    backgroundColor: palette.card, borderRadius: 20,
-    width: '100%', maxWidth: 360, padding: 18, gap: 12,
-    ...shadows.soft,
-  },
-  sheetHead: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
-  sheetTitle: { fontSize: 16, color: palette.foreground, fontFamily: fonts.sans, fontWeight: '700' },
-
-  navRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 4,
-  },
-  navBtn: { padding: 8, borderRadius: 12 },
-  navLabel: { fontSize: 16, fontFamily: fonts.bodyBold, color: palette.foreground },
-
-  yearJumpRow: {
-    flexDirection: 'row', justifyContent: 'space-around', gap: 8,
-  },
-  yearChip: {
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 999, backgroundColor: palette.background,
-    borderWidth: 1, borderColor: palette.border,
-  },
-  yearChipActive: {
-    backgroundColor: palette.accent, borderColor: palette.primary,
-  },
-  yearChipText: { fontSize: 12, color: palette.mutedForeground, fontFamily: fonts.body },
-  yearChipTextActive: { color: palette.primary, fontFamily: fonts.bodyBold },
-
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  weekLabel: {
-    flex: 1, textAlign: 'center', fontSize: 11,
-    color: palette.mutedForeground, fontFamily: fonts.bodyBold,
-  },
-  cell: {
-    flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center',
-    margin: 2, borderRadius: 999,
-  },
-  cellActive: { backgroundColor: palette.primary },
-  cellText: { fontSize: 14, color: palette.foreground, fontFamily: fonts.body },
-  cellTextActive: { color: palette.primaryForeground, fontFamily: fonts.bodyBold },
-
-  footerRow: {
-    flexDirection: 'row', justifyContent: 'space-between', marginTop: 6,
-  },
-  todayBtn: { paddingHorizontal: 14, paddingVertical: 8 },
-  todayBtnText: { fontSize: 13, color: palette.primary, fontFamily: fonts.bodyBold },
-  clearBtn: { paddingHorizontal: 14, paddingVertical: 8 },
-  clearBtnText: { fontSize: 13, color: palette.mutedForeground, fontFamily: fonts.body },
-});
 
 export default function OnboardingScreen() {
   const { setUser } = useAuthStore();
@@ -421,8 +132,15 @@ export default function OnboardingScreen() {
             color: palette.primary,
           });
           setChildren([newChild]);
-        } catch {
-          // Child creation failed silently — user can add from Settings
+        } catch (err: any) {
+          // Previously this failure was swallowed silently, so the user landed
+          // on the Home screen without a child and thought "child settings
+          // can't be done." Surface the real reason instead.
+          const msg =
+            err?.message?.includes('400')
+              ? '入力内容をご確認ください(誕生日はYYYY-MM-DD形式)'
+              : 'お子さまの登録に失敗しました。設定画面から後で追加できます。';
+          showAlert('お子さまの登録', msg);
         }
       }
     } catch {
@@ -640,10 +358,15 @@ export default function OnboardingScreen() {
           />
 
           <Text style={styles.inputLabel}>誕生日（任意）</Text>
-          <DatePickerField
+          <TextInput
+            style={styles.input}
+            placeholder="例: 2024-03-15"
+            placeholderTextColor={palette.mutedForeground}
             value={childBirthday}
-            onChange={setChildBirthday}
-            placeholder="カレンダーから選択"
+            onChangeText={setChildBirthday}
+            keyboardType="numbers-and-punctuation"
+            autoComplete="birthdate-full"
+            maxLength={10}
           />
 
           <Text style={styles.inputLabel}>性別</Text>

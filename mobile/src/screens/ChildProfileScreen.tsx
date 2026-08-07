@@ -27,7 +27,9 @@ import {
   Check,
   Sparkles,
   ChevronRight,
+  Calendar as CalendarIcon,
 } from 'lucide-react-native';
+import DatePickerModal from '../components/DatePickerModal';
 import { getChildren, updateChild, type Child } from '../api/children';
 import { getLogs } from '../api/logs';
 import { useAuthStore } from '../store/authStore';
@@ -168,7 +170,7 @@ export default function ChildProfileScreen() {
   const { user } = useAuthStore();
   const familyId = user?.familyId ?? '';
   const userRole = user?.role === 'mama' ? 'mama' : 'papa';
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
   const childId = route.params?.childId as number;
   const queryClient = useQueryClient();
   const setActiveChildId = useChildStore((s) => s.setActiveChildId);
@@ -187,6 +189,7 @@ export default function ChildProfileScreen() {
 
   const [name, setName] = useState(child?.name ?? '');
   const [birthday, setBirthday] = useState(child?.birthday ?? '');
+  const [showBirthdayPicker, setShowBirthdayPicker] = useState(false);
   const [gender, setGender] = useState<'male' | 'female' | 'other'>(
     child?.gender ?? 'male',
   );
@@ -426,7 +429,7 @@ export default function ChildProfileScreen() {
           <View>
             <Text style={styles.label}>なまえ</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isDark && { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
               value={name}
               onChangeText={setName}
               placeholder="お子さまの名前"
@@ -436,13 +439,30 @@ export default function ChildProfileScreen() {
 
           <View>
             <Text style={styles.label}>たんじょうび</Text>
-            <TextInput
-              style={styles.input}
-              value={birthday}
-              onChangeText={setBirthday}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={palette.mutedForeground}
-              keyboardType="numeric"
+            {/* Calendar picker instead of manual entry (client feedback 2026-07-30). */}
+            <Button
+              variant="outline"
+              onPress={() => setShowBirthdayPicker(true)}
+              style={[styles.datePickerBtn, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={styles.datePickerBtnInner}>
+                <CalendarIcon size={16} color={palette.mutedForeground} strokeWidth={2} />
+                <Text style={[
+                  styles.datePickerBtnText,
+                  !birthday && { color: palette.mutedForeground },
+                  isDark && birthday && { color: colors.text },
+                ]}>
+                  {birthday || '日付を選ぶ'}
+                </Text>
+              </View>
+            </Button>
+            <DatePickerModal
+              visible={showBirthdayPicker}
+              initialDate={birthday}
+              maxDate={new Date()}
+              title="たんじょうびを選ぶ"
+              onConfirm={setBirthday}
+              onClose={() => setShowBirthdayPicker(false)}
             />
           </View>
 
@@ -847,14 +867,27 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     color: palette.foreground,
   },
+  datePickerBtn: {
+    backgroundColor: palette.card,
+    borderRadius: radius.sm,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: palette.border,
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+  },
+  datePickerBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  datePickerBtnText: { fontFamily: fonts.body, fontSize: 15, color: palette.foreground },
 
   genderRow: { flexDirection: 'row', gap: 8 },
   genderBtn: { flex: 1 },
 
-  colorRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  // gap 6 + swatch 36 lets all 6 colors fit on a single row on narrow phones
+  // (previously 8+40 wrapped the 6th color onto a lonely second row).
+  colorRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   colorSwatch: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: radius.full,
     borderWidth: 2,
     borderColor: 'transparent',

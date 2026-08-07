@@ -22,7 +22,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.weyuapp.app",
+      "bundleIdentifier": "com.weyuapp3.app",
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "写真の記録に使用します",
@@ -35,7 +35,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#7C5CBF"
       },
-      "package": "com.weyuapp.app",
+      "package": "com.weyuapp3.app",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",

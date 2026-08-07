@@ -8,12 +8,14 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquare, Send } from 'lucide-react-native';
+import { MessageSquare, Send, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { apiGet, apiPost } from '../api/client';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface WeBoardMessage {
   id: number;
@@ -62,25 +64,34 @@ function formatTime(iso: string): string {
 }
 
 export default function WeBoard({ familyId, userId }: WeBoardProps) {
+  const { isDark, colors } = useTheme();
   const [inputText, setInputText] = useState('');
+  // Web parity (WeBoard.tsx:26): collapsed shows the 3 most recent,
+  // expanded shows up to 10. The toggle button only renders when there
+  // are more than 3 messages.
+  const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const queryClient = useQueryClient();
 
   const { data: messages = [], isLoading } = useQuery<WeBoardMessage[]>({
     queryKey: ['weBoard', familyId],
-    queryFn: () => apiGet<WeBoardMessage[]>(`/api/weBoard/${familyId}`),
+    queryFn: () => apiGet<WeBoardMessage[]>(`/api/we-board/${familyId}`),
     enabled: !!familyId,
     refetchInterval: 30_000,
   });
 
-  // Show only the 3 most recent messages, sorted oldest-first for display
+  // Sorted oldest-first for display; slice from the end so the most recent
+  // messages are always in view. Server returns up to 10 (storage.ts limit).
   const recent = [...messages]
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-    .slice(-3);
+    .slice(expanded ? -10 : -3);
 
   const sendMutation = useMutation({
     mutationFn: (message: string) =>
-      apiPost<WeBoardMessage>(`/api/weBoard/${familyId}`, {
+      // Server POST is /api/we-board (no familyId in the URL path — the id
+      // travels in the body). GET is /api/we-board/:familyId which is why
+      // the two callsites look asymmetric. See server/routes.ts:788-795.
+      apiPost<WeBoardMessage>(`/api/we-board`, {
         familyId,
         userId,
         message,
@@ -90,16 +101,22 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
       setInputText('');
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200);
     },
+    onError: () => {
+      Alert.alert('送信に失敗しました', 'ネットワーク接続をご確認ください。');
+    },
   });
 
-  const handleSend = () => {
-    const trimmed = inputText.trim();
+  const handleSend = (override?: string) => {
+    const trimmed = (override ?? inputText).trim();
     if (!trimmed || sendMutation.isPending) return;
     sendMutation.mutate(trimmed);
   };
 
+  // Preset chips send immediately — matches web (WeBoard.tsx handleSend(qm)).
+  // Previously this only filled the input, requiring another tap; users
+  // typed "the bot didn't reply" because their preset never posted.
   const handlePreset = (preset: string) => {
-    setInputText(preset);
+    handleSend(preset);
   };
 
   return (
@@ -107,20 +124,41 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={80}
     >
-      <View style={styles.card}>
-        {/* Card header — web: icon box + title/subtitle */}
+      <View style={[styles.card, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* Card header — web: icon box + title/subtitle + optional expand
+            toggle on the right. Toggle only appears when > 3 messages,
+            same as web (WeBoard.tsx:68). */}
         <View style={styles.cardHeader}>
-          <View style={styles.headerIconBox}>
-            <MessageSquare size={16} color={PURPLE_600} strokeWidth={2.5} />
+          <View style={styles.headerLeft}>
+            <View style={styles.headerIconBox}>
+              <MessageSquare size={16} color={PURPLE_600} strokeWidth={2.5} />
+            </View>
+            <View>
+              <Text style={[styles.cardTitle, isDark && { color: colors.text }]}>Weボード</Text>
+              <Text style={styles.cardSubtitle}>パートナーへのひとこと</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.cardTitle}>Weボード</Text>
-            <Text style={styles.cardSubtitle}>パートナーへのひとこと</Text>
-          </View>
+          {messages.length > 3 && (
+            <TouchableOpacity
+              style={styles.expandBtn}
+              onPress={() => setExpanded((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.expandBtnText}>
+                {expanded ? '閉じる' : 'もっと見る'}
+              </Text>
+              {expanded ? (
+                <ChevronUp size={12} color={PURPLE_600} strokeWidth={2.5} />
+              ) : (
+                <ChevronDown size={12} color={PURPLE_600} strokeWidth={2.5} />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Messages area */}
-        <View style={styles.messagesContainer}>
+        {/* Messages area — height grows when expanded so the extra
+            messages have room to scroll within the card. */}
+        <View style={[styles.messagesContainer, expanded && styles.messagesContainerExpanded]}>
           {isLoading ? (
             <ActivityIndicator color={palette.primary} style={styles.loader} />
           ) : recent.length === 0 ? (
@@ -196,18 +234,18 @@ export default function WeBoard({ familyId, userId }: WeBoardProps) {
           {/* Input row */}
           <View style={styles.inputRow}>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, isDark && { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
               placeholder="メッセージを入力..."
               placeholderTextColor={PURPLE_400}
               value={inputText}
               onChangeText={setInputText}
               multiline={false}
               returnKeyType="send"
-              onSubmitEditing={handleSend}
+              onSubmitEditing={() => handleSend()}
             />
             <TouchableOpacity
               style={[styles.sendButton, (!inputText.trim() || sendMutation.isPending) && styles.sendButtonDisabled]}
-              onPress={handleSend}
+              onPress={() => handleSend()}
               disabled={!inputText.trim() || sendMutation.isPending}
               activeOpacity={0.8}
             >
@@ -232,6 +270,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: PURPLE_100,
     marginHorizontal: 16,
+    // marginTop 16 gives visual breathing room from the feature card
+    // above (貢献度ダッシュボード) — previously they visually touched.
+    marginTop: 16,
     marginBottom: 16,
     overflow: 'hidden',
     ...shadows.soft,
@@ -239,14 +280,36 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  // web: px-4 pt-4 pb-2 flex items-center gap-2
+  // web: px-4 pt-4 pb-2 flex items-center justify-between
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
+  },
+  // Left cluster: icon + title/subtitle
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  // Right cluster: expand/collapse toggle — matches web
+  // (button-we-board-expand). Purple pill, small chevron.
+  expandBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
+  expandBtnText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: PURPLE_600,
   },
   headerIconBox: {
     width: 32,
@@ -268,11 +331,17 @@ const styles = StyleSheet.create({
     color: GRAY_400,
   },
 
-  // Messages — web: px-4 max-h-36
+  // Messages — web: px-4 max-h-36 collapsed / max-h-64 expanded
   messagesContainer: {
-    minHeight: 80,
-    maxHeight: 160,
+    minHeight: 120,
+    maxHeight: 220,
     paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  // Expanded state — tall enough to show ~7-10 messages before scrolling.
+  // Matches web's max-h-64 (256px) roughly.
+  messagesContainerExpanded: {
+    maxHeight: 360,
   },
   loader: { marginVertical: 20 },
   emptyWrap: { paddingVertical: 16, alignItems: 'center' },
@@ -343,7 +412,9 @@ const styles = StyleSheet.create({
   },
   // Presets — web: flex gap-1.5 mb-2 overflow-x-auto
   presetsScroll: { marginBottom: 8 },
-  presetsContent: { gap: 6, paddingVertical: 2 },
+  // paddingRight leaves a visible "there's more" gap and prevents chips
+  // from being cut mid-character at the right edge on narrow phones.
+  presetsContent: { gap: 6, paddingVertical: 2, paddingRight: 24 },
   // web: px-3 py-1.5 bg-purple-50 text-purple-600 rounded-xl text-[11px] font-bold
   presetChip: {
     backgroundColor: PURPLE_50,

@@ -363,7 +363,26 @@ function EnvironmentChecklist({
   const updateChecklist = useMutation({
     mutationFn: (data: Partial<SleepChecklist>) =>
       apiPost('/api/sleep/checklist', { familyId, date, ...data }),
-    onSuccess: () =>
+    // Optimistic update — the button used to wait for the server round-trip
+    // AND the next refetch before reflecting the checked state, which made it
+    // feel unresponsive on slow networks. Flip the cached value immediately;
+    // roll back if the request fails.
+    onMutate: async (data) => {
+      const queryKey = ['sleepChecklist', familyId, date];
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Partial<SleepChecklist>>(queryKey);
+      queryClient.setQueryData(queryKey, {
+        ...(previous ?? {}),
+        ...data,
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(['sleepChecklist', familyId, date], ctx.previous);
+      }
+    },
+    onSettled: () =>
       queryClient.invalidateQueries({
         queryKey: ['sleepChecklist', familyId, date],
       }),

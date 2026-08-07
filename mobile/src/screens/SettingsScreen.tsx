@@ -47,7 +47,6 @@ import {
   Platform,
   Switch,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -94,7 +93,9 @@ import {
   Lamp,
   Pill,
   Thermometer,
+  Calendar as CalendarIcon,
 } from 'lucide-react-native';
+import DatePickerModal from '../components/DatePickerModal';
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { createChild } from '../api/children';
@@ -194,11 +195,12 @@ function confirmAction(title: string, message: string, onConfirm: () => void) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
+  const { isDark, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const { user, setUser, logout: storeLogout } = useAuthStore();
   const { children, activeChildId, setChildren, setActiveChildId } = useChildStore();
   const queryClient = useQueryClient();
-  const { mode: themeMode, setMode: setThemeMode, isDark } = useTheme();
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
 
   const familyId = user?.familyId ?? '';
 
@@ -236,6 +238,8 @@ export default function SettingsScreen() {
   // ── Profile form (web form §1–4 — backed by /api/settings) ───────────────────
   const [babyName, setBabyName]           = useState('');
   const [babyBirthday, setBabyBirthday]   = useState('');
+  const [showBabyBirthdayPicker, setShowBabyBirthdayPicker] = useState(false);
+  const [showChildBirthdayPicker, setShowChildBirthdayPicker] = useState(false);
   const [specialTrick, setSpecialTrick]   = useState('');
   // Role / caregiver — web uses useUserType ("papa"/"mama"/"other").
   const [userRole, setUserRole]           = useState<'papa' | 'mama' | 'other'>(
@@ -263,29 +267,18 @@ export default function SettingsScreen() {
   // Hydrate the form ONCE when settings first arrive (web: form.reset on load).
   // Guarded with a ref so any refetch can't re-clobber what the user types
   // (the previous version reset state on every `settings` change → render loop).
-  // Fall back to the active child record when settings.babyName is still the
-  // default placeholder — this handles registrations done via the Onboarding
-  // flow that only created a `children` row without writing to /api/settings.
   const hydratedRef = React.useRef(false);
   useEffect(() => {
-    if (!settings || hydratedRef.current) return;
-
-    const settingsHasName = !!settings.babyName && settings.babyName !== FIRST_SETUP_NAME;
-    const fallbackChild = children[0];
-
-    // If settings is still on its placeholder AND children hasn't loaded yet,
-    // wait one more tick — otherwise we'd hydrate the form empty and never
-    // refill it once children arrives.
-    if (!settingsHasName && children.length === 0) return;
-
-    hydratedRef.current = true;
-    setBabyName(settingsHasName ? settings.babyName : (fallbackChild?.name ?? ''));
-    setBabyBirthday(settings.babyBirthday ?? fallbackChild?.birthday ?? '');
-    setSpecialTrick(settings.specialTrick ?? 'ビニール袋の音');
-    if (settings.currentCaregiver === 'ママ') setUserRole('mama');
-    else if (settings.currentCaregiver === 'パパ') setUserRole('papa');
-    else if (settings.currentCaregiver === 'その他') setUserRole('other');
-  }, [settings, children]);
+    if (settings && !hydratedRef.current) {
+      hydratedRef.current = true;
+      setBabyName(settings.babyName === FIRST_SETUP_NAME ? '' : settings.babyName ?? '');
+      setBabyBirthday(settings.babyBirthday ?? '');
+      setSpecialTrick(settings.specialTrick ?? 'ビニール袋の音');
+      if (settings.currentCaregiver === 'ママ') setUserRole('mama');
+      else if (settings.currentCaregiver === 'パパ') setUserRole('papa');
+      else if (settings.currentCaregiver === 'その他') setUserRole('other');
+    }
+  }, [settings]);
 
   // ── Pairing join state (web: PairingSection) ─────────────────────────────────
   const [copied, setCopied]     = useState(false);
@@ -398,27 +391,6 @@ export default function SettingsScreen() {
             ? 'other'
             : 'papa';
       if (user) setUser({ ...user, familyId: vars.familyId, role });
-
-      // ── Auto-create a child record when none exists yet (mirror of
-      //    WeYu web's use-active-child auto-create). The babyName/birthday
-      //    from the settings form becomes the first child so the Home
-      //    screen header reflects the registration immediately.
-      try {
-        if (vars.babyName && vars.babyName.trim() && children.length === 0) {
-          const newChild = await createChild({
-            familyId: vars.familyId,
-            name: vars.babyName.trim(),
-            birthday: vars.babyBirthday?.trim() || undefined,
-            color: '#805AAA',
-          });
-          setChildren([newChild]);
-          setActiveChildId(newChild.id);
-          queryClient.invalidateQueries({ queryKey: ['children'] });
-        }
-      } catch (e) {
-        console.warn('auto-create child failed:', e);
-      }
-
       notify('設定を保存しました');
       navigation.navigate('Main');
     },
@@ -652,7 +624,7 @@ export default function SettingsScreen() {
       {isFirstSetup && (
         <View style={styles.firstSetupBox}>
           <Text style={styles.firstSetupText}>
-            We育へようこそ。まずはお子様のお名前とお誕生日をお聞かせくださいませ。このアプリの大切な主役でございます。
+            ようこそ、ぶどうの木へ。まずはお子様のお名前とお誕生日をお聞かせくださいませ。このアプリの大切な主役でございます。
           </Text>
         </View>
       )}
@@ -691,13 +663,26 @@ export default function SettingsScreen() {
                   <Cake size={16} color="#C9A8E6" />
                   <Text style={styles.fieldLabelLg}>生年月日</Text>
                 </View>
-                <TextInput
-                  style={styles.profileInput}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={palette.mutedForeground}
-                  value={babyBirthday}
-                  onChangeText={setBabyBirthday}
-                  keyboardType="numbers-and-punctuation"
+                <TouchableOpacity
+                  style={[styles.profileInput, styles.datePickerTrigger]}
+                  onPress={() => setShowBabyBirthdayPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <CalendarIcon size={16} color={palette.mutedForeground} strokeWidth={2} />
+                  <Text style={{
+                    fontFamily: fonts.body, fontSize: 15,
+                    color: babyBirthday ? palette.foreground : palette.mutedForeground,
+                  }}>
+                    {babyBirthday || '日付を選ぶ'}
+                  </Text>
+                </TouchableOpacity>
+                <DatePickerModal
+                  visible={showBabyBirthdayPicker}
+                  initialDate={babyBirthday}
+                  maxDate={new Date()}
+                  title="生年月日を選ぶ"
+                  onConfirm={setBabyBirthday}
+                  onClose={() => setShowBabyBirthdayPicker(false)}
                 />
                 <Muted style={styles.fieldHint}>生後4ヶ月でAIキャラが切り替わります</Muted>
               </View>
@@ -997,6 +982,27 @@ export default function SettingsScreen() {
             </Button>
           </Card>
 
+          {/* ── 10. アプリとして使う ──
+              Web's <InstallGuide> is PWA-specific ("Safariの共有→ホーム画面に追加" /
+              Chrome "アプリをインストール"). On native this app is ALREADY an
+              installed app, so the web install steps do not apply. We show the
+              nearest sensible native equivalent (an info note) instead of
+              fabricating native install steps. */}
+          <Card style={[styles.card, styles.cardBlue]}>
+            <View style={styles.cardHead}>
+              <View style={[styles.iconCircle, styles.iconCircleBlue]}>
+                <Smartphone size={20} color="#5B8DD5" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardHeadTitle}>アプリとして使う</Text>
+                <Muted style={styles.cardHeadSub}>ホーム画面に追加してネイティブアプリのように</Muted>
+              </View>
+            </View>
+            <Muted style={styles.alarmDesc}>
+              この画面はインストール済みのネイティブアプリとして動作しています。Web版でホーム画面に追加する手順は不要です。
+            </Muted>
+          </Card>
+
           {/* ── 11. 画面の明るさ (web: ThemeSection) ── */}
           <Card style={styles.card}>
             <View style={styles.cardHead}>
@@ -1245,19 +1251,20 @@ export default function SettingsScreen() {
             </View>
           </Card>
 
-          {/* ── 15. 取扱説明書 (external Gamma doc) ── */}
+          {/* ── 15. 使い方ヒント (web: /tips link → Tips.tsx) ──
+              Routes to the dedicated TipsScreen (faithful port of
+              WeYu/client/src/pages/Tips.tsx). Route registered by the
+              navigator after this screen; cast keeps Settings tsc-clean. */}
           <TouchableOpacity
             style={styles.linkCard}
-            onPress={() =>
-              Linking.openURL('https://gamma.app/docs/We--61oeu7orz3t7x57?mode=doc')
-            }
+            onPress={() => (navigation as any).navigate('Tips')}
           >
             <View style={styles.iconCircle}>
               <BookOpen size={20} color={palette.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.linkTitle}>取扱説明書</Text>
-              <Muted style={styles.cardHeadSub}>使い方ガイドを開く</Muted>
+              <Text style={styles.linkTitle}>使い方ヒント</Text>
+              <Muted style={styles.cardHeadSub}>パートナー招待・ご褒美ショップなど</Muted>
             </View>
             <ChevronRight size={16} color={palette.mutedForeground} />
           </TouchableOpacity>
@@ -1297,7 +1304,7 @@ export default function SettingsScreen() {
       {/* ── Add Child Modal (mobile-only — preserved, matches ChildProfile) ── */}
       <Modal visible={showAddChild} transparent animationType="slide" onRequestClose={() => setShowAddChild(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAddChild(false)}>
-          <TouchableOpacity style={styles.sheetContainer} activeOpacity={1}>
+          <TouchableOpacity style={[styles.sheetContainer, isDark && { backgroundColor: colors.card }]} activeOpacity={1}>
             <View style={styles.sheetHandle} />
             <Title style={styles.sheetTitle}>お子さまを追加</Title>
 
@@ -1316,13 +1323,29 @@ export default function SettingsScreen() {
 
               <View>
                 <Text style={styles.cpLabel}>たんじょうび</Text>
-                <TextInput
-                  style={styles.cpInput}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={palette.mutedForeground}
-                  value={childBirthday}
-                  onChangeText={setChildBirthday}
-                  keyboardType="numbers-and-punctuation"
+                {/* Missed in the earlier birthday-picker port — this modal
+                    is the actual "add child" flow (Settings sheet), not
+                    OnboardingScreen. Client feedback 2026-07-31. */}
+                <TouchableOpacity
+                  style={[styles.cpInput, styles.datePickerTrigger]}
+                  onPress={() => setShowChildBirthdayPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <CalendarIcon size={16} color={palette.mutedForeground} strokeWidth={2} />
+                  <Text style={{
+                    fontFamily: fonts.body, fontSize: 15,
+                    color: childBirthday ? palette.foreground : palette.mutedForeground,
+                  }}>
+                    {childBirthday || '日付を選ぶ'}
+                  </Text>
+                </TouchableOpacity>
+                <DatePickerModal
+                  visible={showChildBirthdayPicker}
+                  initialDate={childBirthday}
+                  maxDate={new Date()}
+                  title="たんじょうびを選ぶ"
+                  onConfirm={setChildBirthday}
+                  onClose={() => setShowChildBirthdayPicker(false)}
                 />
               </View>
 
@@ -1508,6 +1531,9 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     color: palette.foreground,
   },
+  // Applied on top of profileInput when the field is a date-picker trigger
+  // (not a real TextInput). Row layout for icon + text.
+  datePickerTrigger: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
   // Role selector — web Settings.tsx:1294-1313
   // grid grid-cols-3 gap-3; tile = flex-col items-center py-4 rounded-xl border-2 bg-white;
@@ -1746,10 +1772,10 @@ const styles = StyleSheet.create({
   },
   genderRow: { flexDirection: 'row', gap: 8 },
   genderBtn: { flex: 1 },
-  colorRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  colorRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   colorSwatch: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: radius.full,
     borderWidth: 2,
     borderColor: 'transparent',

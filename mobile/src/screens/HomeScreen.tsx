@@ -27,7 +27,7 @@ const MODAL_ICON_W =
   (Math.min(Dimensions.get('window').width, GRID_MAX) - 40 - MODAL_ICON_GAP * 5) / 6;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   differenceInDays,
@@ -41,6 +41,8 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { getLogs, createLog } from '../api/logs';
+import { useToast } from '../components/Toast';
+import { logRecordedToast } from '../utils/logToast';
 import { getChildren } from '../api/children';
 import {
   getActiveSleepSession, startSleepSession, endSleepSession, manualSleepEntry,
@@ -83,7 +85,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 //
 // Buttons hidden by default regardless of phase: 'moisturize', 'nail_cut'
 
-interface LogButton { type: string; label: string; emoji: string; color: string }
+interface LogButton { type: string; label: string; emoji: string; color: string; icon?: string }
 
 export const PHASE_LABELS = [
   '乳児期 (0〜11ヶ月)',
@@ -109,6 +111,7 @@ export const PHASE_BUTTONS: LogButton[][] = [
     { type: 'bath',        label: 'おふろ',    emoji: '🛁', color: '#E0F7FA' },
     { type: 'play',        label: 'あそび',    emoji: '🎈', color: '#FCE4EC' },
     { type: 'hold',        label: '抱っこ',    emoji: '🤗', color: '#FFF0F5' },
+    { type: 'walk',        label: 'お散歩',    emoji: '🚶', icon: 'Footprints', color: '#E8F5E9' },
     { type: 'drink',       label: 'のみもの',  emoji: '🥤', color: '#E3F2FD' },
     { type: 'school',      label: '園の記録',  emoji: '🏫', color: '#E8F5E9' },
     { type: 'toothbrush',  label: 'はみがき',  emoji: '🦷', color: '#E0F2F1' },
@@ -135,6 +138,7 @@ export const PHASE_BUTTONS: LogButton[][] = [
     { type: 'play',        label: 'あそび',    emoji: '🎈', color: '#FCE4EC' },
     { type: 'milestone',   label: 'はじめて',  emoji: '⭐', color: '#FFF9C4' },
     { type: 'hold',        label: '抱っこ',    emoji: '🤗', color: '#FFF0F5' },
+    { type: 'walk',        label: 'お散歩',    emoji: '🚶', icon: 'Footprints', color: '#E8F5E9' },
     { type: 'drink',       label: 'のみもの',  emoji: '🥤', color: '#E3F2FD' },
     { type: 'school',      label: '園の記録',  emoji: '🏫', color: '#E8F5E9' },
     { type: 'toothbrush',  label: 'はみがき',  emoji: '🦷', color: '#E0F2F1' },
@@ -159,6 +163,7 @@ export const PHASE_BUTTONS: LogButton[][] = [
     { type: 'diaper',      label: 'おむつ',    emoji: '🚼', color: '#E3F2FD' },
     { type: 'bath',        label: 'おふろ',    emoji: '🛁', color: '#E0F7FA' },
     { type: 'hold',        label: '抱っこ',    emoji: '🤗', color: '#FFF0F5' },
+    { type: 'walk',        label: 'お散歩',    emoji: '🚶', icon: 'Footprints', color: '#E8F5E9' },
     { type: 'drink',       label: 'のみもの',  emoji: '🥤', color: '#E3F2FD' },
     { type: 'school',      label: '園の記録',  emoji: '🏫', color: '#E8F5E9' },
     { type: 'toothbrush',  label: 'はみがき',  emoji: '🦷', color: '#E0F2F1' },
@@ -181,6 +186,7 @@ export const PHASE_BUTTONS: LogButton[][] = [
     { type: 'thank_you',   label: 'ありがとう',emoji: '💌', color: '#FCE4EC' },
     { type: 'snack',       label: 'おやつ',    emoji: '🍪', color: '#FFF8E1' },
     { type: 'drink',       label: 'のみもの',  emoji: '🥤', color: '#E3F2FD' },
+    { type: 'walk',        label: 'お散歩',    emoji: '🚶', icon: 'Footprints', color: '#E8F5E9' },
     { type: 'toothbrush',  label: 'はみがき',  emoji: '🦷', color: '#E0F2F1' },
     { type: 'moisturize',  label: '保湿',      emoji: '💧', color: '#E3F2FD' },
     { type: 'nail_cut',    label: '爪切り',    emoji: '✂️', color: '#F3E5F5' },
@@ -562,6 +568,7 @@ export default function HomeScreen() {
   const { user } = useAuthStore();
   const { activeChildId, activeChild, children, setChildren } = useChildStore();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const { isDark, colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -649,32 +656,6 @@ export default function HomeScreen() {
     });
   }, []);
 
-  // ── Display settings (Weボード / チーム育児スキル の表示ON/OFF) ────────────
-  // Mirror of SettingsScreen's @weyu_display_settings. Re-read on focus so
-  // toggling in Settings is reflected when the user returns to Home.
-  const [displaySettings, setDisplaySettings] = useState<{ showWeBoard: boolean; showSkillTree: boolean }>({
-    showWeBoard: true,
-    showSkillTree: true,
-  });
-
-  useFocusEffect(
-    React.useCallback(() => {
-      AsyncStorage.getItem('@weyu_display_settings').then((stored) => {
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            setDisplaySettings({
-              showWeBoard: parsed.showWeBoard !== false,
-              showSkillTree: parsed.showSkillTree !== false,
-            });
-          } catch {
-            /* fall back to defaults */
-          }
-        }
-      });
-    }, []),
-  );
-
   // ── Log dialog ────────────────────────────────────────────────────────────
   const [activeLogType, setActiveLogType] = useState<string | null>(null);
 
@@ -716,6 +697,7 @@ export default function HomeScreen() {
       }
       const allLogs = queryClient.getQueryData<any[]>(['logs', familyId]) ?? [];
       rebuildWidgetSnapshot(allLogs, child?.name ?? null).catch(() => {});
+      toast.show(logRecordedToast(newLog.type, newLog.points ?? 10));
     },
     onError: () => showAlert('記録の保存に失敗しました。'),
   });
@@ -1103,7 +1085,7 @@ export default function HomeScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, isDark && { backgroundColor: colors.background }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* 1. Header (web-parity component) */}
@@ -1127,7 +1109,7 @@ export default function HomeScreen() {
       {/* 2. すくすく成長中 card — web Home.tsx:265-295 */}
       <TouchableOpacity
         activeOpacity={0.85}
-        style={styles.growthCard}
+        style={[styles.growthCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
         onPress={() => child?.id != null && navigation.navigate('ChildProfile', { childId: child.id })}
       >
         <View style={styles.growthTopRow}>
@@ -1155,7 +1137,7 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       {/* 3. TODAY'S SUMMARY card — web Home.tsx:344-451 (5-stat infant row) */}
-      <View style={styles.summaryCard}>
+      <View style={[styles.summaryCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={styles.uppercaseLabel}>Today's Summary</Text>
         <View style={styles.summaryRow}>
           {/* 睡眠 — web: bg-indigo-50 / Moon text-indigo-500 */}
@@ -1246,10 +1228,17 @@ export default function HomeScreen() {
           <View
             style={[
               styles.nextFeedCard,
+              // Origin dark: bg-pink-950/60 / bg-amber-950/60 with pink-800 / amber-800 borders
               isOverdue
-                ? { backgroundColor: C.pink50, borderColor: C.pink200 }
+                ? isDark
+                  ? { backgroundColor: '#500724CC', borderColor: '#9D174D' }
+                  : { backgroundColor: C.pink50, borderColor: C.pink200 }
                 : isSoon
-                ? { backgroundColor: C.amber50, borderColor: C.amber100 }
+                ? isDark
+                  ? { backgroundColor: '#451A03CC', borderColor: '#92400E' }
+                  : { backgroundColor: C.amber50, borderColor: C.amber100 }
+                : isDark
+                ? { backgroundColor: '#50072499', borderColor: '#831843' }
                 : { backgroundColor: '#FDF2F899', borderColor: C.pink100 },
             ]}
           >
@@ -1292,15 +1281,27 @@ export default function HomeScreen() {
         );
       })()}
 
-      {/* 5. WAKE WINDOW card — web Home.tsx:543-629 (purple=urgent / indigo=warning|info) */}
+      {/* 5. WAKE WINDOW card — web Home.tsx:543-629 (purple=urgent / indigo=warning|info)
+              Dark values ported from origin dark: classes:
+                urgent bg → bg-purple-950/60  #3B076499
+                warning  → bg-indigo-950/60   #1E1B4B99
+                info     → bg-indigo-950/50   #1E1B4B80
+                urgent border → dark:border-purple-800  #6B21A8
+                warning/info border → dark:border-indigo-800  #3730A3 */}
       {lastSleepLog && !isSleeping && !wakeHidden && (
         <View
           style={[
             styles.wakeCard,
             wakeWindowAlert?.level === 'urgent'
-              ? { backgroundColor: '#FAF5FFCC', borderColor: C.purple200 }
+              ? isDark
+                ? { backgroundColor: '#3B076499', borderColor: '#6B21A8' }
+                : { backgroundColor: '#FAF5FFCC', borderColor: C.purple200 }
               : wakeWindowAlert?.level === 'warning'
-              ? { backgroundColor: '#EEF2FFCC', borderColor: C.indigo200 }
+              ? isDark
+                ? { backgroundColor: '#1E1B4B99', borderColor: '#3730A3' }
+                : { backgroundColor: '#EEF2FFCC', borderColor: C.indigo200 }
+              : isDark
+              ? { backgroundColor: '#1E1B4B80', borderColor: '#3730A3' }
               : { backgroundColor: '#FFFFFF99', borderColor: C.indigo100 },
           ]}
         >
@@ -1349,10 +1350,10 @@ export default function HomeScreen() {
               style={[
                 styles.napBox,
                 wakeWindowAlert?.level === 'urgent'
-                  ? { backgroundColor: '#F3E8FF99' }
+                  ? isDark ? { backgroundColor: '#581C8766' } : { backgroundColor: '#F3E8FF99' }
                   : wakeWindowAlert?.level === 'warning'
-                  ? { backgroundColor: '#E0E7FF99' }
-                  : { backgroundColor: '#EEF2FFCC' },
+                  ? isDark ? { backgroundColor: '#31278166' } : { backgroundColor: '#E0E7FF99' }
+                  : isDark ? { backgroundColor: '#1E1B4B99' } : { backgroundColor: '#EEF2FFCC' },
               ]}
             >
               <View style={styles.napRow}>
@@ -1487,7 +1488,7 @@ export default function HomeScreen() {
                       dragging && styles.logButtonDragging,
                     ]}
                   >
-                    <View style={styles.logBadge}>
+                    <View style={[styles.logBadge, isDark && { backgroundColor: colors.cardAlt, shadowOpacity: 0 }]}>
                       <GripVertical size={20} color={C.gray400} strokeWidth={2} />
                     </View>
                     <Text
@@ -1520,7 +1521,7 @@ export default function HomeScreen() {
                 disabled={createLogMutation.isPending}
                 activeOpacity={0.85}
               >
-                <View style={styles.logBadge}>
+                <View style={[styles.logBadge, isDark && { backgroundColor: colors.cardAlt, shadowOpacity: 0 }]}>
                   <LogIcon
                     type={btn.type}
                     size={20}
@@ -1564,7 +1565,7 @@ export default function HomeScreen() {
                     disabled={reorderMode || createLogMutation.isPending}
                     activeOpacity={reorderMode ? 1 : 0.85}
                   >
-                    <View style={styles.logBadge}>
+                    <View style={[styles.logBadge, isDark && { backgroundColor: colors.cardAlt, shadowOpacity: 0 }]}>
                       {reorderMode ? (
                         <GripVertical size={20} color={C.gray400} strokeWidth={2} />
                       ) : (
@@ -1622,7 +1623,7 @@ export default function HomeScreen() {
 
       {/* 8. 24時間タイムライン entry — web Home.tsx:527-544 */}
       <TouchableOpacity
-        style={styles.timelineCard}
+        style={[styles.timelineCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
         activeOpacity={0.85}
         onPress={() =>
           (navigation as any).navigate('Timeline')
@@ -1639,7 +1640,7 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       {/* 9. TEAM POWER / TOTAL POINTS — web Home.tsx:546-561 */}
-      <View style={styles.teamPowerCard}>
+      <View style={[styles.teamPowerCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Zap size={22} color={C.purple500} strokeWidth={2.5} />
           <View>
@@ -1682,13 +1683,13 @@ export default function HomeScreen() {
           titleText: '健康・成長記録', subText: '体温・おむつ詳細・症状メモ・成長曲線',
           onPress: () => navigation.navigate('Health'),
         },
-        ...(displaySettings.showSkillTree ? [{
+        {
           Icon: Users,
           cardBg: C.purple50, border: C.purple100, badge: C.purple100,
           iconC: C.purple600, title: C.purple800, sub: C.purple500, chev: C.purple400,
           titleText: 'チーム育児スキル', subText: 'ふたりの経験値を確認する',
           onPress: () => navigation.navigate('SkillTree'),
-        }] : []),
+        },
         {
           Icon: Moon,
           cardBg: C.indigo50, border: C.indigo100, badge: C.indigo100,
@@ -1707,7 +1708,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           key={f.titleText}
           activeOpacity={0.85}
-          style={[styles.featureCard2, { backgroundColor: f.cardBg, borderColor: f.border }]}
+          style={[styles.featureCard2, { backgroundColor: f.cardBg, borderColor: f.border }, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}
           onPress={f.onPress}
         >
           <View style={[styles.featureBadge, { backgroundColor: f.badge }]}>
@@ -1722,9 +1723,12 @@ export default function HomeScreen() {
       ))}
 
       {/* 12. WeBoard */}
-      {displaySettings.showWeBoard && familyId && userId && <WeBoard familyId={familyId} userId={userId} />}
+      {familyId && userId && <WeBoard familyId={familyId} userId={userId} />}
 
-      <View style={{ height: 100 }} />
+      {/* Bottom-tab clearance — was 100 (created a visible empty band under
+          WeBoard); 24 is enough for the 64px tab bar since content already
+          stops above it. */}
+      <View style={{ height: 24 }} />
 
       {/* 13. ── LogDialog ─────────────────────────────────────────────────────── */}
       <LogDialog
@@ -1741,7 +1745,7 @@ export default function HomeScreen() {
       {/* ── Custom button add modal ───────────────────────────────────────────── */}
       <Modal visible={showCustomModal} transparent animationType="slide" onRequestClose={closeCustomModal}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, isDark && { backgroundColor: colors.card }]}>
             <View style={styles.sheetHandle} />
             <View style={styles.modalHeaderRow}>
               <Text style={styles.modalTitle}>カスタムボタンを追加</Text>
@@ -1830,7 +1834,7 @@ export default function HomeScreen() {
                         { backgroundColor: sw.soft, borderColor: sw.bord },
                       ]}
                     >
-                      <View style={styles.logBadge}>
+                      <View style={[styles.logBadge, isDark && { backgroundColor: colors.cardAlt, shadowOpacity: 0 }]}>
                         <CustomButtonIcon icon={newBtnIcon} size={20} strokeWidth={2.5} color={sw.tint} />
                       </View>
                       <Text style={[styles.logLabel, { color: sw.tint }]} numberOfLines={1}>

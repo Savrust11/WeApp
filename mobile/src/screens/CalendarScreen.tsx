@@ -46,6 +46,7 @@ import {
 } from '../api/events';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text, Title } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 import { LogIcon, getLogVisual } from '../theme/logIcons';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -163,6 +164,7 @@ export default function CalendarScreen() {
   const familyId    = user?.familyId ?? 'default';
   const userId      = String(user?.id ?? '');
   const queryClient = useQueryClient();
+  const { isDark, colors } = useTheme();
 
   const today = useMemo(() => new Date(), []);
 
@@ -373,7 +375,7 @@ export default function CalendarScreen() {
   };
 
   const renderMonthGrid = () => (
-    <View style={st.calCard}>
+    <View style={[st.calCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={st.dayLabels}>
         {DAY_LABELS.map((d, i) => (
           <Text key={d} style={[st.dayLabel, i === 0 ? st.sunLabel : i === 6 ? st.satLabel : null]}>{d}</Text>
@@ -451,14 +453,14 @@ export default function CalendarScreen() {
   const renderTimeline = () => {
     if (timelineItems.length === 0) {
       return (
-        <View style={st.emptyCard}>
+        <View style={[st.emptyCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
           <CalendarDays size={40} color={palette.border} strokeWidth={1.5} />
           <Text style={st.emptyText}>この日の記録はありません</Text>
         </View>
       );
     }
     return (
-      <View style={st.timelineCard}>
+      <View style={[st.timelineCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
         {timelineItems.map((item, idx) => {
           const divider = idx > 0;
           if (item.kind === 'event' && item.event) {
@@ -549,10 +551,10 @@ export default function CalendarScreen() {
   const previewColor = getEventColorDef(fColor);
 
   return (
-    <View style={st.container}>
+    <View style={[st.container, isDark && { backgroundColor: colors.background }]}>
       {/* Single page scroll — web: whole Calendar page scrolls under <Header /> */}
       <ScrollView
-        style={st.pageScroll}
+        style={[st.pageScroll, isDark && { backgroundColor: colors.background }]}
         contentContainerStyle={st.pageContent}
         showsVerticalScrollIndicator={false}
       >
@@ -598,7 +600,7 @@ export default function CalendarScreen() {
       {/* ── Add event sheet (web: bottom sheet, single scroll) ──────────── */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <View style={st.modalOverlay}>
-          <View style={st.modalSheet}>
+          <View style={[st.modalSheet, isDark && { backgroundColor: colors.card }]}>
             <View style={st.sheetHandle} />
             <View style={st.modalHeader}>
               <Title style={st.modalTitle}>予定を追加</Title>

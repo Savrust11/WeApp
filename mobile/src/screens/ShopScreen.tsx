@@ -41,6 +41,7 @@ import {
   TEAM_POWER_DESC,
 } from '../utils/pointsManager';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   Screen,
   Card,
@@ -116,6 +117,7 @@ function getUserLabel(role: 'papa' | 'mama' | 'other'): string {
 }
 
 export default function ShopScreen() {
+  const { isDark, colors } = useTheme();
   const { user } = useAuthStore();
   const { children, activeChildId } = useChildStore();
   const navigation = useNavigation<any>();
@@ -501,11 +503,11 @@ export default function ShopScreen() {
             const canAfford = points >= coupon.cost;
             const isEditing = editingId === coupon.id;
             return (
-              <Card key={coupon.id} style={styles.couponCard}>
+              <Card key={coupon.id} style={[styles.couponCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
                 {isEditing ? (
                   <View style={styles.editForm}>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, isDark && { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
                       placeholder="クーポンの内容"
                       placeholderTextColor={palette.mutedForeground}
                       value={editTitle}
@@ -513,7 +515,7 @@ export default function ShopScreen() {
                       maxLength={40}
                     />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, isDark && { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
                       placeholder="必要ポイント"
                       placeholderTextColor={palette.mutedForeground}
                       value={editCost}
@@ -764,13 +766,13 @@ export default function ShopScreen() {
       {/* ── Add Custom Coupon Modal ───────────────────────────────────────────── */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowAddModal(false)}>
-          <TouchableOpacity style={styles.sheet} activeOpacity={1}>
+          <TouchableOpacity style={[styles.sheet, isDark && { backgroundColor: colors.card }]} activeOpacity={1}>
             <View style={styles.sheetHandle} />
             <Title style={styles.sheetTitle}>カスタムクーポン作成</Title>
 
             <Text style={styles.inputLabel}>クーポンの内容</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isDark && { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
               placeholder="例：映画デート券"
               placeholderTextColor={palette.mutedForeground}
               value={newTitle}
@@ -781,7 +783,7 @@ export default function ShopScreen() {
 
             <Text style={styles.inputLabel}>必要ポイント</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isDark && { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
               placeholder="例：500"
               placeholderTextColor={palette.mutedForeground}
               value={newCost}
@@ -812,7 +814,7 @@ export default function ShopScreen() {
       {/* ── ポイントのしくみ Modal ── */}
       <Modal visible={showPointsInfo} transparent animationType="slide" onRequestClose={() => setShowPointsInfo(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowPointsInfo(false)}>
-          <TouchableOpacity style={[styles.sheet, { paddingBottom: 32 }]} activeOpacity={1}>
+          <TouchableOpacity style={[styles.sheet, { paddingBottom: 32 }, isDark && { backgroundColor: colors.card }]} activeOpacity={1}>
             <View style={styles.sheetHandle} />
             <Title style={styles.sheetTitle}>ポイントのしくみ</Title>
 

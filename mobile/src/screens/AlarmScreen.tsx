@@ -40,9 +40,12 @@ import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { apiRequest } from '../api/client';
 import { getLogs, createLog, type Log } from '../api/logs';
+import { useToast } from '../components/Toast';
+import { logRecordedToast } from '../utils/logToast';
 import type { RootStackParamList } from '../navigation';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -68,10 +71,12 @@ const FEEDING_LABEL: Record<string, string> = {
 const FEEDING_TYPES = new Set(Object.keys(FEEDING_LABEL));
 
 export default function AlarmScreen() {
+  const { isDark, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const { user } = useAuthStore();
   const familyId = user?.familyId ?? 'default';
   const queryClient = useQueryClient();
+  const toast = useToast();
   const activeChildId = useChildStore((s) => s.activeChildId);
 
   // Wizard / flow state — matches web (step, showTimer, timeLeft) plus the
@@ -102,8 +107,9 @@ export default function AlarmScreen() {
   const createSosLog = useMutation({
     mutationFn: (data: { type: string; message: string }) =>
       createLog({ ...data, familyId: String(familyId) }),
-    onSuccess: () => {
+    onSuccess: (newLog) => {
       queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+      toast.show(logRecordedToast(newLog.type, newLog.points ?? 10));
     },
   });
 
@@ -234,7 +240,7 @@ export default function AlarmScreen() {
   if (!started) {
     return (
       <View style={styles.modalRoot}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, isDark && { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.modalIconWrap}>
             <Text style={styles.modalIconEmoji}>🚨</Text>
           </View>
@@ -251,7 +257,13 @@ export default function AlarmScreen() {
               ]}
               onPress={() => navigation.goBack()}
             >
-              <Text style={styles.modalBtnCancelText}>キャンセル</Text>
+              <Text
+                style={styles.modalBtnCancelText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                キャンセル
+              </Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [
@@ -261,7 +273,13 @@ export default function AlarmScreen() {
               ]}
               onPress={() => setStarted(true)}
             >
-              <Text style={styles.modalBtnStartText}>レスキュー開始！</Text>
+              <Text
+                style={styles.modalBtnStartText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                レスキュー開始！
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -270,7 +288,7 @@ export default function AlarmScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       {/* Header — web: ← + 泣き止みレスキュー */}
       <View style={styles.header}>
         <Pressable
@@ -459,14 +477,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(46,41,50,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 28,
+    padding: 16,
   },
   modalCard: {
     width: '100%',
     maxWidth: 380,
     backgroundColor: palette.card,
     borderRadius: radius.xl,
-    padding: 28,
+    padding: 20,
     alignItems: 'center',
     ...shadows.soft,
   },
@@ -511,7 +529,7 @@ const styles = StyleSheet.create({
   },
   modalBtnCancelText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 15,
+    fontSize: 14,
     color: RESCUE_INK,
   },
   modalBtnStart: {
@@ -520,7 +538,7 @@ const styles = StyleSheet.create({
   },
   modalBtnStartText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 15,
+    fontSize: 14,
     color: palette.primaryForeground,
   },
 

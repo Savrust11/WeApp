@@ -42,7 +42,9 @@ import Animated, {
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { getLogs, createLog, updateLog, deleteLog, type Log } from '../api/logs';
-import { apiGet } from '../api/client';
+import { useToast } from '../components/Toast';
+import { logRecordedToast } from '../utils/logToast';
+import { apiGet, apiPost } from '../api/client';
 import type { RootStackParamList } from '../navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
@@ -146,6 +148,16 @@ function minutesFromMidnight(d: Date): number {
 }
 function minutesToTopPx(minutes: number): number {
   return (minutes / (24 * 60)) * TOTAL_HEIGHT;
+}
+// Inverse of minutesToTopPx — used by drag-to-time to compute the new
+// minutes-since-midnight from a pixel y position. Client feedback #3.
+function topPxToMinutes(px: number): number {
+  return Math.round((px / TOTAL_HEIGHT) * 24 * 60);
+}
+function mmToHHmm(min: number): string {
+  const h = Math.max(0, Math.min(23, Math.floor(min / 60)));
+  const m = Math.max(0, Math.min(59, min % 60));
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -497,6 +509,12 @@ interface EditLogDialogProps {
   onSaved: () => void;
 }
 
+// ── Options mirror the ORIGIN web (Timeline.tsx:1795, 1825) exactly.
+// (Renamed to avoid shadowing the `SLEEP_LOCATIONS` Set at line 128 used
+// by the sleep-badge renderer.)
+const SLEEP_EDIT_METHOD_OPTIONS   = ['抱っこ', '抱っこひも', '添い乳', '添い寝', 'なし'];
+const SLEEP_EDIT_LOCATION_OPTIONS = ['布団', '抱っこ寝', 'ベビーカー', '抱っこひも寝', 'チャイルドシート'];
+
 function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -504,12 +522,42 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
 
   const [timeStr, setTimeStr] = useState('');
   const [nightWaking, setNightWaking] = useState('');
+  // Sleep-specific edit fields (client feedback 2026-07-30)
+  const [settlingMethods, setSettlingMethods] = useState<string[]>([]);
+  const [sleepLocation,   setSleepLocation]   = useState<string>('');
+  const [sleepNote,       setSleepNote]       = useState<string>('');
 
   useEffect(() => {
     if (!log) return;
     setTimeStr(fmtHHmm(log.createdAt));
     setNightWaking(String(parseNightWaking(log.memo) || ''));
+    // Hydrate sleep fields from the incoming log. settlingMethod is stored
+    // as a "・"-joined string (or literal "なし" for the exclusive choice).
+    if (log.type === 'sleep') {
+      const rawMethod = (log as any).settlingMethod as string | null | undefined;
+      if (rawMethod && rawMethod !== 'なし') setSettlingMethods(rawMethod.split('・').filter(Boolean));
+      else if (rawMethod === 'なし') setSettlingMethods(['なし']);
+      else setSettlingMethods([]);
+      setSleepLocation((log as any).sleepLocation ?? '');
+      setSleepNote((log as any).sleepNote ?? '');
+    } else {
+      setSettlingMethods([]);
+      setSleepLocation('');
+      setSleepNote('');
+    }
   }, [log]);
+
+  const toggleSettlingMethod = (m: string) => {
+    if (m === 'なし') {
+      setSettlingMethods(prev => prev.includes('なし') ? [] : ['なし']);
+    } else {
+      setSettlingMethods(prev =>
+        prev.includes(m)
+          ? prev.filter(x => x !== m)
+          : [...prev.filter(x => x !== 'なし'), m],
+      );
+    }
+  };
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Log> }) => updateLog(id, data),
@@ -542,7 +590,16 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
     newDate.setHours(hh, mm, 0, 0);
     const nw = parseInt(nightWaking) || 0;
     const newMemo = log.type === 'sleep' ? setNightWakingInMemo(log.memo, nw) : log.memo;
-    updateMut.mutate({ id: log.id, data: { createdAt: newDate.toISOString(), memo: newMemo } as any });
+    const payload: any = { createdAt: newDate.toISOString(), memo: newMemo };
+    if (log.type === 'sleep') {
+      // Persist the two "…がなかった" fields the client reported as
+      // missing (feedback 2026-07-30). settlingMethod joins with "・"
+      // when multiple chips are on; empty selection stores null.
+      payload.settlingMethod = settlingMethods.length > 0 ? settlingMethods.join('・') : null;
+      payload.sleepLocation  = sleepLocation || null;
+      payload.sleepNote      = sleepNote.trim() || null;
+    }
+    updateMut.mutate({ id: log.id, data: payload as any });
   };
 
   const handleDelete = () => {
@@ -564,11 +621,21 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
       <View style={ed.overlay}>
         <View style={ed.sheet}>
           <View style={ed.handle} />
+          {/* Sleep-log edits added 3 new sections (寝かしつけ方法 / 場所 /
+              メモ) — the sheet now overflows the screen on small phones
+              and the top part gets clipped. Wrap the body in a ScrollView
+              and cap sheet height so nothing is unreachable. Header was
+              also chunky: shrank title/infoPill vertical padding. */}
+          <ScrollView
+            style={{ maxHeight: '100%' }}
+            contentContainerStyle={{ paddingBottom: 8 }}
+            showsVerticalScrollIndicator={false}
+          >
           <Title style={ed.title}>記録の詳細</Title>
 
           {/* Web: info pill — bg-*-50 border-*-100 rounded-2xl */}
           <View style={[ed.infoPill, { backgroundColor: vis.soft, borderColor: vis.bord }]}>
-            <LogIcon type={logVisualType(log.type)} size={20} strokeWidth={2} />
+            <LogIcon type={logVisualType(log.type)} size={18} strokeWidth={2} />
             <View style={{ flex: 1 }}>
               <Text style={ed.infoLabel}>{label}</Text>
               {detail ? <Text style={ed.infoDetail}>{detail}</Text> : null}
@@ -576,7 +643,17 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
           </View>
 
           <Text style={ed.label}>記録時間</Text>
-          <TextInput style={ed.input} value={timeStr} onChangeText={setTimeStr} placeholder="HH:MM" keyboardType="numeric" />
+          {/* keyboardType was "numeric" — iOS's numeric keyboard has no ":" key,
+              so users could not type "13:45" and the input appeared frozen.
+              "numbers-and-punctuation" exposes the punctuation row. */}
+          <TextInput
+            style={ed.input}
+            value={timeStr}
+            onChangeText={setTimeStr}
+            placeholder="HH:MM"
+            keyboardType="numbers-and-punctuation"
+            maxLength={5}
+          />
 
           {log.type === 'sleep' && (
             <>
@@ -586,6 +663,49 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
               {parseInt(nightWaking) > 0 && (
                 <Text style={ed.hint}>夜中起き −{nightWaking}分 として記録されます</Text>
               )}
+
+              {/* 寝かしつけ方法 (multi-select; なし is exclusive) — web parity */}
+              <Text style={[ed.label, { color: '#818CF8' /* indigo-400 */ }]}>寝かしつけ方法（任意）</Text>
+              <View style={ed.chipRow}>
+                {SLEEP_EDIT_METHOD_OPTIONS.map(m => {
+                  const on = settlingMethods.includes(m);
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => toggleSettlingMethod(m)}
+                      style={[ed.chip, on ? ed.chipOnIndigo : ed.chipOffIndigo]}
+                    >
+                      <Text style={[ed.chipText, on ? ed.chipTextOn : ed.chipTextIndigo]}>{m}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* ねんね場所 (single-select toggle) */}
+              <Text style={[ed.label, { color: '#38BDF8' /* sky-400 */ }]}>ねんね場所（任意）</Text>
+              <View style={ed.chipRow}>
+                {SLEEP_EDIT_LOCATION_OPTIONS.map(loc => {
+                  const on = sleepLocation === loc;
+                  return (
+                    <TouchableOpacity
+                      key={loc}
+                      onPress={() => setSleepLocation(on ? '' : loc)}
+                      style={[ed.chip, on ? ed.chipOnSky : ed.chipOffSky]}
+                    >
+                      <Text style={[ed.chipText, on ? ed.chipTextOn : ed.chipTextSky]}>{loc}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={[ed.label, { color: '#A855F7' /* purple-500 */ }]}>ねんねメモ（任意）</Text>
+              <TextInput
+                style={[ed.input, { minHeight: 60, textAlignVertical: 'top' }]}
+                value={sleepNote}
+                onChangeText={setSleepNote}
+                placeholder="例：スムーズに寝付いた、途中で起きて再入眠に時間がかかった…"
+                multiline
+              />
             </>
           )}
 
@@ -601,6 +721,7 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
             <Trash2 size={15} color={palette.destructive} strokeWidth={2} />
             <Text style={ed.deleteText}>削除する</Text>
           </TouchableOpacity>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -969,6 +1090,7 @@ export default function TimelineScreen() {
   const navigation   = useNavigation<Nav>();
   const familyId     = user?.familyId ?? 1;
   const queryClient  = useQueryClient();
+  const toast        = useToast();
   const { isDark, colors } = useTheme();
   const { activeChildId, activeChild } = useChildStore();
   const userId = String(user?.id ?? '');
@@ -1085,7 +1207,10 @@ export default function TimelineScreen() {
 
   const createLogMutation = useMutation({
     mutationFn: createLog,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['logs', familyId] }),
+    onSuccess: (newLog) => {
+      queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+      toast.show(logRecordedToast(newLog.type, newLog.points ?? 10));
+    },
     onError: () => showAlert('記録の保存に失敗しました。'),
   });
 
@@ -1195,6 +1320,35 @@ export default function TimelineScreen() {
   const selectedStr = toYMD(selectedDate);
   const isToday = selectedStr === toYMD(today);
 
+  // ── Drag-to-change-time (client feedback #3, 2026-07-30) ─────────────
+  // Long-press a log for 400ms to activate drag; drag vertically to move
+  // its record time; release to commit. Mirrors web Timeline.tsx:660-750.
+  const [draggingLogId, setDraggingLogId] = useState<number | null>(null);
+  const [dragTopPx, setDragTopPx]         = useState<number | null>(null);
+  const dragOriginTop = useRef<number>(0);
+
+  const updateLogTimeMut = useMutation({
+    mutationFn: ({ id, createdAt }: { id: number; createdAt: string }) =>
+      apiPost(`/api/logs/${id}/update-time`, { createdAt }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+      queryClient.invalidateQueries({ queryKey: ['logs'] });
+    },
+    onError: () => {
+      Alert.alert('時刻の変更に失敗しました', 'ネットワーク接続をご確認ください。');
+    },
+  });
+
+  const commitDrag = useCallback((log: Log, newTopPx: number) => {
+    // Center the entry, snap to 5-minute increments, clamp to the day.
+    const centerPx = newTopPx + LOG_ENTRY_HEIGHT / 2;
+    const rawMin = topPxToMinutes(centerPx);
+    const snappedMin = Math.max(0, Math.min(24 * 60 - 1, Math.round(rawMin / 5) * 5));
+    const d = new Date(selectedDate);
+    d.setHours(Math.floor(snappedMin / 60), snappedMin % 60, 0, 0);
+    updateLogTimeMut.mutate({ id: log.id, createdAt: d.toISOString() });
+  }, [selectedDate, updateLogTimeMut]);
+
   // 7-day chip strip ending at today (or window around selectedDate)
   const dateChips = useMemo(() => {
     const windowEnd = (new Date(selectedDate).getTime() < addDays(today, -6).getTime())
@@ -1210,14 +1364,22 @@ export default function TimelineScreen() {
   }
 
   return (
-    <View style={t.container}>
+    <View style={[t.container, isDark && { backgroundColor: colors.background }]}>
       {/* ── WeYu Header (BABY / name / 担当中 / gear) ──────────────────────── */}
       <WeHeader />
 
       {/* ── Header (web: title + 分析 / 振り返り / PDF / date toggle) ─────── */}
-      <View style={t.header}>
+      {/* Title on its own row, pills on a horizontally-scrolling row below —
+          previously all 4 pills sat next to the title in a flex row, which
+          overflowed off the right edge on narrow phones (title ~150px +
+          4 pills ~230px > 360px screen). */}
+      <View style={t.headerStack}>
         <Title style={t.headerTitle}>1週間タイムライン</Title>
-        <View style={t.headerBtns}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={t.headerBtnsScroll}
+        >
           <TouchableOpacity style={[t.pill, t.pillIndigo]} onPress={() => navigation.navigate('DailyStats')} activeOpacity={0.85}>
             <Moon size={13} color="#6366F1" strokeWidth={2} />
             <Text style={[t.pillText, { color: '#6366F1' }]}>分析</Text>
@@ -1249,7 +1411,7 @@ export default function TimelineScreen() {
               {selectedDate.getMonth() + 1}/{selectedDate.getDate()}
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
 
       {/* ── Collapsible 7-day date-chip strip ───────────────────────────── */}
@@ -1312,7 +1474,7 @@ export default function TimelineScreen() {
       {/* ── 24-hour vertical timeline (swipeable) ───────────────────────── */}
       <View style={{ flex: 1 }} {...panResponder.panHandlers}>
         <View style={t.timelineCardWrap}>
-          <View style={t.timelineCard}>
+          <View style={[t.timelineCard, isDark && { backgroundColor: colors.card }]}>
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ height: TOTAL_HEIGHT }}
@@ -1349,12 +1511,61 @@ export default function TimelineScreen() {
                   const textPri = isDark && !isFever ? '#EFEFEF' : palette.foreground;
                   const textSec = isDark && !isFever ? '#AAAACC' : palette.mutedForeground;
                   const promo = promoMap[log.id];
+                  const isDragging = draggingLogId === log.id;
+                  const effectiveTop = isDragging && dragTopPx !== null
+                    ? dragTopPx
+                    : Math.max(0, layout.top);
+                  // Pan gesture activates after a 400ms long-press. Short tap
+                  // still fires onPress on the TouchableOpacity below.
+                  // Gesture callbacks run on the UI thread as worklets —
+                  // React setState calls MUST be wrapped in runOnJS or the
+                  // app crashes the moment you touch a log card (this was
+                  // the root cause of the "app closes on tap" bug reported
+                  // 2026-07-31). Mirrors the pattern used by the reorder
+                  // gesture at line 385.
+                  const dragGesture = Gesture.Pan()
+                    .activateAfterLongPress(400)
+                    .onStart(() => {
+                      const originTop = Math.max(0, layout.top);
+                      dragOriginTop.current = originTop;
+                      runOnJS(setDraggingLogId)(log.id);
+                      runOnJS(setDragTopPx)(originTop);
+                    })
+                    .onUpdate((e) => {
+                      const next = Math.max(
+                        0,
+                        Math.min(
+                          TOTAL_HEIGHT - LOG_ENTRY_HEIGHT,
+                          dragOriginTop.current + e.translationY,
+                        ),
+                      );
+                      runOnJS(setDragTopPx)(next);
+                    })
+                    .onEnd(() => {
+                      // dragTopPx is a JS ref captured at gesture-build
+                      // time; safe to read from the worklet. Use runOnJS
+                      // for anything that touches React state.
+                      const finalPx = dragTopPx;
+                      if (finalPx !== null && Math.abs(finalPx - dragOriginTop.current) > 2) {
+                        runOnJS(commitDrag)(log, finalPx);
+                      }
+                      runOnJS(setDraggingLogId)(null);
+                      runOnJS(setDragTopPx)(null);
+                    })
+                    .onFinalize(() => {
+                      // Cleanup even on cancel — matches pattern above.
+                      runOnJS(setDraggingLogId)(null);
+                      runOnJS(setDragTopPx)(null);
+                    });
+                  const dragTimeLabel = isDragging && dragTopPx !== null
+                    ? mmToHHmm(Math.round(topPxToMinutes(dragTopPx + LOG_ENTRY_HEIGHT / 2) / 5) * 5)
+                    : null;
                   return (
                     <View
                       key={`log-${log.id}`}
                       style={[
                         tl.logEntryWrap,
-                        { top: Math.max(0, layout.top) },
+                        { top: effectiveTop, zIndex: isDragging ? 100 : 10 },
                       ]}
                     >
                       <View
@@ -1368,24 +1579,30 @@ export default function TimelineScreen() {
                         <View style={{ flexDirection: 'row' }}>
                           <View style={{ width: `${colL}%` }} />
                           <View style={{ width: `${colW}%` }}>
-                            <TouchableOpacity activeOpacity={0.75} onPress={() => setEditingLog(log)}>
-                              <View style={[
-                                tl.logCard,
-                                { backgroundColor: cardBg, borderColor: cardBorder },
-                                isFever && tl.logCardFever,
-                              ]}>
-                                <LogIcon type={logVisualType(log.type)} size={15} strokeWidth={2} />
-                                <View style={tl.logBody}>
-                                  <Text numberOfLines={1} style={[tl.logTitle, { color: textPri }]}>
-                                    {detail || label}
-                                  </Text>
-                                  <Text numberOfLines={1} style={[tl.logTime, { color: textSec }]}>
-                                    {fmtHHmm(log.createdAt)}{log.points ? `  +${log.points}pt` : ''}
-                                  </Text>
+                            <GestureDetector gesture={dragGesture}>
+                              <TouchableOpacity
+                                activeOpacity={0.75}
+                                onPress={() => { if (!isDragging) setEditingLog(log); }}
+                              >
+                                <View style={[
+                                  tl.logCard,
+                                  { backgroundColor: cardBg, borderColor: cardBorder },
+                                  isFever && tl.logCardFever,
+                                  isDragging && { transform: [{ scale: 1.05 }], shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
+                                ]}>
+                                  <LogIcon type={logVisualType(log.type)} size={15} strokeWidth={2} />
+                                  <View style={tl.logBody}>
+                                    <Text numberOfLines={1} style={[tl.logTitle, { color: textPri }]}>
+                                      {detail || label}
+                                    </Text>
+                                    <Text numberOfLines={1} style={[tl.logTime, { color: textSec }]}>
+                                      {dragTimeLabel ?? fmtHHmm(log.createdAt)}{log.points ? `  +${log.points}pt` : ''}
+                                    </Text>
+                                  </View>
                                 </View>
-                              </View>
-                            </TouchableOpacity>
-                            {promo && (
+                              </TouchableOpacity>
+                            </GestureDetector>
+                            {promo && !isDragging && (
                               <View style={tl.promoCard}>
                                 <Heart size={13} color="#D4A017" strokeWidth={2} />
                                 <Text style={tl.promoMsg} numberOfLines={2}>{promo.message}</Text>
@@ -1657,6 +1874,9 @@ const t = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontFamily: fonts.sans, fontWeight: '700', color: palette.foreground },
   headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // Stacked layout (title above pills) — pills row is horizontally scrollable.
+  headerStack: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 8, gap: 8 },
+  headerBtnsScroll: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 24 },
 
   // Web: rounded-2xl px-3 py-1.5 soft tinted pills with 1px border
   pill: {
@@ -1693,7 +1913,11 @@ const t = StyleSheet.create({
   dateSleepMeta: { fontSize: 11, fontFamily: fonts.bodyBold, fontWeight: '700', color: '#A5B4FC' },
 
   // Timeline card — web: rounded-3xl shadow card wrapping the 24h grid
-  timelineCardWrap: { flex: 1, paddingHorizontal: 16, paddingBottom: 90 },
+  // paddingBottom was 90 (extra buffer above the tab bar) — client
+  // 2026-07-31 asked to shrink the empty band between the timeline
+  // card and the tab bar. Reduced to 12; the FAB (bottom: 80) floats
+  // OVER the timeline card, which is how FABs are supposed to work.
+  timelineCardWrap: { flex: 1, paddingHorizontal: 16, paddingBottom: 12 },
   timelineCard: {
     flex: 1,
     backgroundColor: palette.card,
@@ -1830,10 +2054,14 @@ const tl = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(167,139,201,0.4)',
     justifyContent: 'center', zIndex: 5,
   },
-  sleepInner: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 4, gap: 3 },
+  // Sleep-block content sits at the LEFT so it stays visible when
+  // point-in-time logs (walk / hold / etc.) are positioned on top of
+  // the sleep bar. Was center-aligned before, which meant every
+  // overlapping log card would completely hide the ねんね label.
+  sleepInner: { alignItems: 'flex-start', justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 4, gap: 3 },
   sleepHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sleepTitle: { fontSize: 12, fontFamily: fonts.bodyBold, fontWeight: '700', color: '#7C5CBF' },
-  sleepBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' },
+  sleepBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-start' },
   sleepBadge: { borderRadius: radius.full, paddingHorizontal: 6, paddingVertical: 2 },
   sleepBadgeMethod: { backgroundColor: 'rgba(167,139,201,0.4)' },
   sleepBadgeLoc:    { backgroundColor: 'rgba(165,180,252,0.4)' },
@@ -1846,6 +2074,10 @@ const tl = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderRadius: radius.lg,
     paddingHorizontal: 8, paddingVertical: 6, minHeight: LOG_ENTRY_HEIGHT,
+    // Subtle shadow so the card clearly reads as "above" any sleep block
+    // it may overlap with. Android needs `elevation`; iOS uses shadow*.
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 }, elevation: 2,
   },
   logCardFever: {
     shadowColor: '#EF4444', shadowOpacity: 0.2, shadowRadius: 4,
@@ -1867,15 +2099,19 @@ const tl = StyleSheet.create({
 
 const ed = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: palette.card, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 32 },
-  handle: { width: 40, height: 4, backgroundColor: palette.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  title: { fontSize: 18, fontFamily: fonts.sans, fontWeight: '700', color: palette.foreground, textAlign: 'center', marginBottom: 16 },
+  // maxHeight 88% + reduced vertical padding keeps sleep-log edit content
+  // fully reachable via the internal ScrollView on small phones. Was:
+  // no maxHeight, padding 24, paddingBottom 32 — content overflowed
+  // screen top on sleep logs since the extra fields were added.
+  sheet: { backgroundColor: palette.card, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24, maxHeight: '88%' },
+  handle: { width: 40, height: 4, backgroundColor: palette.border, borderRadius: 2, alignSelf: 'center', marginBottom: 10 },
+  title: { fontSize: 15, fontFamily: fonts.sans, fontWeight: '700', color: palette.foreground, textAlign: 'center', marginBottom: 10 },
   infoPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12,
   },
-  infoLabel: { fontSize: 14, fontFamily: fonts.bodyBold, fontWeight: '700', color: palette.foreground },
-  infoDetail: { fontSize: 12, fontFamily: fonts.body, color: palette.mutedForeground, marginTop: 2 },
+  infoLabel: { fontSize: 13, fontFamily: fonts.bodyBold, fontWeight: '700', color: palette.foreground },
+  infoDetail: { fontSize: 11, fontFamily: fonts.body, color: palette.mutedForeground, marginTop: 1 },
   label: { fontSize: 12, fontFamily: fonts.bodyBold, fontWeight: '700', color: palette.mutedForeground, marginBottom: 6 },
   input: {
     backgroundColor: palette.card, borderRadius: radius.lg, paddingHorizontal: 14, paddingVertical: 12,
@@ -1883,6 +2119,22 @@ const ed = StyleSheet.create({
     color: palette.foreground, marginBottom: 12,
   },
   hint: { fontSize: 12, fontFamily: fonts.body, color: palette.primary, marginBottom: 8, marginTop: -8 },
+
+  // Chips for the sleep-log settling-method / sleep-location selectors.
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  chip: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: radius.md, borderWidth: 2,
+  },
+  chipText: { fontFamily: fonts.bodyBold, fontSize: 12 },
+  chipTextOn: { color: '#fff' },
+  chipOnIndigo:  { backgroundColor: '#6366F1', borderColor: '#6366F1' },
+  chipOffIndigo: { backgroundColor: palette.card, borderColor: '#E0E7FF' },
+  chipTextIndigo: { color: '#6366F1' },
+  chipOnSky:  { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
+  chipOffSky: { backgroundColor: palette.card, borderColor: '#E0F2FE' },
+  chipTextSky: { color: '#0EA5E9' },
+
   btnRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   cancelBtn: { flex: 1, backgroundColor: palette.muted, borderRadius: radius.lg, paddingVertical: 14, alignItems: 'center' },
   cancelText: { color: palette.mutedForeground, fontSize: 14, fontFamily: fonts.bodySemibold },

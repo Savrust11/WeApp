@@ -74,8 +74,11 @@ import { apiGet, apiPost, apiRequest } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import type { Log } from '../api/logs';
+import { useToast } from '../components/Toast';
+import { logRecordedToast } from '../utils/logToast';
 import { palette, fonts, radius } from '../theme/tokens';
 import { Screen, Card, Button, Text, Title } from '../theme/ui';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ─────────────────────────────────────────────
 // Types
@@ -134,6 +137,8 @@ const TYPE_LABELS: Record<string, string> = {
   milk: 'ミルク',
   food: '離乳食',
   diaper: 'おむつ',
+  diaper_wet: 'おむつ (おしっこ)',
+  diaper_poop: 'おむつ (うんち)',
   sleep: 'ねんね',
   play: 'あそび',
   sos: 'レスキュー',
@@ -223,10 +228,12 @@ function donutSlice(
 // ─────────────────────────────────────────────
 
 export default function DashboardScreen(): React.ReactElement {
+  const { isDark, colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const familyId = user?.familyId ?? '';
   const userRole: Performer = user?.role ?? 'papa';
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const activeChildId = useChildStore((s) => s.activeChildId);
 
@@ -281,8 +288,9 @@ export default function DashboardScreen(): React.ReactElement {
         childId: activeChildId ?? undefined,
         points: 10,
       }),
-    onSuccess: () => {
+    onSuccess: (newLog) => {
       queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+      toast.show(logRecordedToast(newLog.type, newLog.points ?? 10));
     },
   });
 
@@ -714,7 +722,7 @@ export default function DashboardScreen(): React.ReactElement {
         onRequestClose={() => setChoreDialogOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, isDark && { backgroundColor: colors.card }]}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Title style={styles.modalTitle}>名もなき育児を記録</Title>
@@ -811,7 +819,7 @@ export default function DashboardScreen(): React.ReactElement {
         onRequestClose={() => setAddCustomDialogOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, isDark && { backgroundColor: colors.card }]}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Title style={styles.modalTitle}>カスタム項目を追加</Title>

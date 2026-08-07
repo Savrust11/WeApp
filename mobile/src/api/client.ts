@@ -43,7 +43,16 @@ export async function apiRequest(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${res.status}: ${text}`);
+    // Server errors are JSON ({ message }) — surface the clean message instead
+    // of a raw "status: {...}" blob so failures read like normal app errors.
+    let message = `リクエストに失敗しました (${res.status})`;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.message) message = parsed.message;
+    } catch {
+      if (text) message = text;
+    }
+    throw new Error(message);
   }
 
   return res;

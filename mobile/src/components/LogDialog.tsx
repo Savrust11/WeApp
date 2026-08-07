@@ -35,9 +35,37 @@ import {
   Edit3, Clock, ChevronDown, ChevronUp, Timer,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { SleepSession } from '../api/sleepSessions';
+import type { RootStackParamList } from '../navigation';
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '../api/client';
+import { useAuthStore } from '../store/authStore';
+import { useChildStore } from '../store/childStore';
+import { useTheme } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
+
+// ── Food-picker types + categories (kept in sync with FoodTrackerScreen).
+// Client feedback 2026-07-30: reintroduce inline "select from checklist"
+// inside the 離乳食 dialog. Ported from web ActionButtons.tsx:2190-2260.
+interface FoodIngredientLite {
+  ingredientName: string;
+  category: string;
+  status: string;
+}
+const FOOD_PICKER_CATEGORIES: { id: string; label: string }[] = [
+  { id: 'grains',           label: '穀類' },
+  { id: 'vegetables',       label: '野菜' },
+  { id: 'fruits',           label: '果物' },
+  { id: 'protein_beans',    label: 'たんぱく質（豆）' },
+  { id: 'protein_fish',     label: 'たんぱく質（魚）' },
+  { id: 'protein_meat',     label: 'たんぱく質（肉）' },
+  { id: 'protein_eggs',     label: 'たんぱく質（卵）' },
+  { id: 'protein_dairy',    label: '乳製品' },
+  { id: 'other',            label: 'その他' },
+];
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -87,6 +115,10 @@ export interface LogSaveData {
   disciplineType?: string;
   /** 抱っこ: end time ISO string. */
   holdEndAt?: string;
+  /** お散歩: end time ISO string. */
+  walkEndAt?: string;
+  /** Milk logs flagged as "not counted for next-feeding prediction". */
+  excludeFromInterval?: boolean;
   /** Custom record timestamp (ISO) when user changed "時間を変更". */
   createdAt?: string;
   /** Joined performer roles for web parity ("mama・papa"). */
@@ -270,6 +302,10 @@ export default function LogDialog({
   visible, logType, userRole, activeSleepSession,
   onClose, onSave, onEndSleepSession, onManualSleep,
 }: Props) {
+  // Navigation for in-dialog affordances (e.g. 食材チェックリスト button
+  // inside the 離乳食 dialog — matches web ActionButtons.tsx:2267-2275).
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { isDark, colors } = useTheme();
 
   // ── Assignee (担当者 複数選択可) ─────────────────────────────────────────────
   const [assignees, setAssignees] = useState<Set<'self' | 'partner' | 'other'>>(new Set(['self']));
@@ -320,6 +356,9 @@ export default function LogDialog({
   const [spitUpAmount, setSpitUpAmount] = useState('');
   const [spitUpTiming, setSpitUpTiming] = useState('');
   const [spitUpNote,   setSpitUpNote]   = useState('');
+  // Web-parity: excludeFromInterval — when true, this milk log is not
+  // used to predict the next feeding time. Missing on mobile until 2026-07-30.
+  const [excludeFromInterval, setExcludeFromInterval] = useState(false);
 
   const clearBreast = () => { if (breastRef.current) { clearInterval(breastRef.current); breastRef.current = null; } };
   const startBreastTimer = (side: 'left' | 'right') => {
@@ -427,10 +466,48 @@ export default function LogDialog({
   const [holdEndTime, setHoldEndTime] = useState('');
   const [holdMemo,    setHoldMemo]    = useState('');
 
+  // ── お散歩 (walk) — same shape as hold: start + optional end time + memo.
+  //    Web parity: ActionButtons.tsx:277-282 + saves walkEndAt.
+  const [walkEndTime, setWalkEndTime] = useState('');
+  const [walkMemo,    setWalkMemo]    = useState('');
+
   // ── Food (per-食材 rows with 7-level amount) ─────────────────────────────────
   interface FoodEntry { name: string; amount: string }
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([{ name: '', amount: '' }]);
   const [foodNote,    setFoodNote]    = useState('');
+  // Inline "select from checklist" (client feedback #4). Ported from web
+  // ActionButtons.tsx:2190-2270.
+  const [showFoodPicker, setShowFoodPicker] = useState(false);
+  const [foodPickerCat,  setFoodPickerCat]  = useState<string>('all');
+  const familyIdForFoodPicker = useAuthStore(s => s.user?.familyId);
+  const childIdForFoodPicker  = useChildStore(s => s.activeChildId);
+  const { data: pickerIngredients = [] } = useQuery<FoodIngredientLite[]>({
+    queryKey: ['foodIngredients', familyIdForFoodPicker, childIdForFoodPicker],
+    queryFn: () => apiGet(`/api/families/${familyIdForFoodPicker}/food-ingredients/${childIdForFoodPicker}`),
+    enabled: visible && logType === 'food' && !!familyIdForFoodPicker && !!childIdForFoodPicker,
+    staleTime: 60_000,
+  });
+  const triedIngredients = pickerIngredients.filter(
+    i => i.status === 'ok' || i.status === 'caution',
+  );
+  const foodPickerCategoriesWithItems = FOOD_PICKER_CATEGORIES.filter(cat =>
+    triedIngredients.some(i => i.category === cat.id),
+  );
+  const foodPickerDisplayItems = foodPickerCat === 'all'
+    ? triedIngredients
+    : triedIngredients.filter(i => i.category === foodPickerCat);
+  const foodPickerSelectedNames = new Set(foodEntries.map(e => e.name).filter(Boolean));
+  const addFromFoodPicker = (name: string) => {
+    if (foodPickerSelectedNames.has(name)) return;
+    const emptyIdx = foodEntries.findIndex(e => !e.name.trim() && !e.amount);
+    if (emptyIdx >= 0) {
+      const next = [...foodEntries];
+      next[emptyIdx] = { name, amount: '' };
+      setFoodEntries(next);
+    } else {
+      setFoodEntries([...foodEntries, { name, amount: '' }]);
+    }
+  };
 
   // ── Simple text ─────────────────────────────────────────────────────────────
   const [textValue, setTextValue] = useState('');
@@ -480,6 +557,7 @@ export default function LogDialog({
     setBreastTimerRunning(false); setBreastTimerPaused(false); setBreastTimerSide('left'); setBreastTimerSec(0);
     setIsExpressed(false); setExpressedMl(0); setFormulaMl(0);
     setSpitUp(false); setSpitUpAmount(''); setSpitUpTiming(''); setSpitUpNote('');
+    setExcludeFromInterval(false);
     setExprStep('timer'); setExprManualMode(false);
     setExprLeftSec(0); setExprRightSec(0); setExprActiveSide(null);
     setExprManualLeft(''); setExprManualRight('');
@@ -490,7 +568,9 @@ export default function LogDialog({
     setManualStart(''); setManualEnd(''); setManualNoEnd(false); setManualSleepError('');
     setSleepElapsedMin(0);
     setHoldEndTime(''); setHoldMemo('');
+    setWalkEndTime(''); setWalkMemo('');
     setFoodEntries([{ name: '', amount: '' }]); setFoodNote('');
+    setShowFoodPicker(false); setFoodPickerCat('all');
     setTextValue('');
     setMealResult(''); setMealMemo('');
     setDisciplineType(''); setDisciplineMemo('');
@@ -528,11 +608,12 @@ export default function LogDialog({
       spitUpAmount: spitUp ? spitUpAmount || undefined : undefined,
       spitUpTiming: spitUp ? spitUpTiming || undefined : undefined,
       spitUpNote:   spitUp && spitUpNote.trim() ? spitUpNote.trim() : undefined,
+      excludeFromInterval,
     };
     finishWith(data);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMilkType, assignees, breastLeftMin, breastRightMin, isExpressed, expressedMl,
-      formulaMl, spitUp, spitUpAmount, spitUpTiming, spitUpNote, logTime]);
+      formulaMl, spitUp, spitUpAmount, spitUpTiming, spitUpNote, excludeFromInterval, logTime]);
 
   const handleExpressSubmit = useCallback(() => {
     clearExpr();
@@ -644,6 +725,34 @@ export default function LogDialog({
         };
         break;
       }
+      case 'walk': {
+        // Walk = same shape as hold; server uses walkEndAt to render a
+        // duration band on the timeline (Timeline.tsx:470-478).
+        const ca = createdAtIso();
+        const startD = ca ? new Date(ca) : new Date();
+        let endIso: string | undefined;
+        let durNote = '';
+        if (walkEndTime && /^\d{1,2}:\d{2}$/.test(walkEndTime)) {
+          const today = new Date().toISOString().split('T')[0];
+          const end = new Date(`${today}T${walkEndTime.padStart(5, '0')}:00`);
+          if (!isNaN(end.getTime())) {
+            endIso = end.toISOString();
+            const mins = Math.round((end.getTime() - startD.getTime()) / 60000);
+            if (mins > 0) {
+              const h = Math.floor(mins / 60);
+              const m = mins % 60;
+              durNote = h > 0 ? `${h}時間${m > 0 ? `${m}分` : ''}` : `${m}分`;
+              durNote = `（${durNote}）`;
+            }
+          }
+        }
+        data = {
+          ...data,
+          walkEndAt: endIso,
+          memo: [`お散歩${durNote}`, walkMemo.trim()].filter(Boolean).join(' ') || undefined,
+        };
+        break;
+      }
       case 'meal': {
         const lbl = MEAL_RESULTS.find(m => m.id === mealResult)?.label ?? mealResult;
         data = { ...data, mealResult, memo: [`ごはん: ${lbl}`, mealMemo.trim()].filter(Boolean).join(' ') || undefined };
@@ -686,7 +795,7 @@ export default function LogDialog({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     logType, assignees, diaperPee, diaperPoop, poopColor, poopConsistency, stoolAmount,
-    foodEntries, foodNote, holdEndTime, holdMemo, mealResult, mealMemo,
+    foodEntries, foodNote, holdEndTime, holdMemo, walkEndTime, walkMemo, mealResult, mealMemo,
     disciplineType, disciplineMemo, playTypes, playMemo, drinkType, drinkCustom, drinkAmount,
     toiletResult, medName, medDose, medMemo, tempValue, selectedSymptoms, symptomNote, textValue,
     logTime, handleExpressSubmit,
@@ -1175,6 +1284,27 @@ export default function LogDialog({
           </>
         )}
 
+        {/* Web-parity: 授乳間隔の計算から除外 — for solids-adjacent top-ups
+            that shouldn't reset the "next feeding" prediction timer. */}
+        <View style={{ backgroundColor: PURPLE_50, borderColor: PURPLE_100, borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 6 }}>
+          {/* Inline flex row instead of s.checkRow — the shared style has
+              a default 1px borderWidth with no borderColor, which rendered
+              as black inside the already-bordered purple box. */}
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            onPress={() => setExcludeFromInterval(v => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={[s.checkbox, excludeFromInterval && { backgroundColor: PURPLE_600, borderColor: PURPLE_600 }]}>
+              {excludeFromInterval && <Check size={13} color="#fff" strokeWidth={3} />}
+            </View>
+            <Text style={[s.checkLabel, { color: PURPLE_600 }]}>授乳間隔の計算から除外</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 11, color: PURPLE_400, marginTop: 6, paddingLeft: 30 }}>
+            離乳食とセットの授乳など、次の授乳予測にカウントしたくない時にチェック
+          </Text>
+        </View>
+
         <TouchableOpacity
           style={[s.primarySolid, { backgroundColor: BLUE_500, paddingVertical: 15, marginTop: 4 }, milkDisabled && s.btnDisabled]}
           disabled={milkDisabled}
@@ -1453,6 +1583,98 @@ export default function LogDialog({
       <View style={s.section}>
         {renderTimeEdit()}
         {renderAssignee()}
+
+        {/* ── チェックリストから選ぶ ─────────────────────────────────────
+            Collapsible chip picker that reads from the family's food
+            ingredients list. Web parity: ActionButtons.tsx:2190-2270.
+            Only appears when there ARE tried items to pick from — the
+            standalone 食材チェックリスト link at the bottom is still there
+            for adding new items. */}
+        <View style={s.foodPickerBox}>
+          <TouchableOpacity
+            style={s.foodPickerHeader}
+            onPress={() => setShowFoodPicker(v => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={s.foodPickerHeaderLeft}>
+              <ClipboardList size={14} color={PURPLE_600} strokeWidth={2.5} />
+              <Text style={s.foodPickerHeaderText}>チェックリストから選ぶ</Text>
+              {triedIngredients.length > 0 && (
+                <View style={s.foodPickerCountPill}>
+                  <Text style={s.foodPickerCountText}>{triedIngredients.length}件</Text>
+                </View>
+              )}
+            </View>
+            {showFoodPicker
+              ? <ChevronUp size={14} color={PURPLE_600} strokeWidth={2.5} />
+              : <ChevronDown size={14} color={PURPLE_600} strokeWidth={2.5} />}
+          </TouchableOpacity>
+          {showFoodPicker && (
+            <View style={s.foodPickerBody}>
+              {triedIngredients.length === 0 ? (
+                <Text style={s.foodPickerEmpty}>
+                  食材チェックリストで「食べた」をつけると{'\n'}ここに表示されます
+                </Text>
+              ) : (
+                <>
+                  {foodPickerCategoriesWithItems.length > 1 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.foodPickerCatRow}>
+                      <TouchableOpacity
+                        style={[s.foodPickerCatBtn, foodPickerCat === 'all' && s.foodPickerCatBtnOn]}
+                        onPress={() => setFoodPickerCat('all')}
+                      >
+                        <Text style={[s.foodPickerCatText, foodPickerCat === 'all' && s.foodPickerCatTextOn]}>全部</Text>
+                      </TouchableOpacity>
+                      {foodPickerCategoriesWithItems.map(cat => (
+                        <TouchableOpacity
+                          key={cat.id}
+                          style={[s.foodPickerCatBtn, foodPickerCat === cat.id && s.foodPickerCatBtnOn]}
+                          onPress={() => setFoodPickerCat(cat.id)}
+                        >
+                          <Text style={[s.foodPickerCatText, foodPickerCat === cat.id && s.foodPickerCatTextOn]}>{cat.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                  <View style={s.foodPickerChipWrap}>
+                    {foodPickerDisplayItems.map(item => {
+                      const isSelected = foodPickerSelectedNames.has(item.ingredientName);
+                      const isCaution = item.status === 'caution';
+                      return (
+                        <TouchableOpacity
+                          key={item.ingredientName}
+                          disabled={isSelected}
+                          onPress={() => addFromFoodPicker(item.ingredientName)}
+                          style={[
+                            s.foodPickerChip,
+                            isSelected
+                              ? { backgroundColor: PURPLE_100, borderColor: PURPLE_200 }
+                              : isCaution
+                                ? { backgroundColor: AMBER_50, borderColor: AMBER_300 }
+                                : { backgroundColor: palette.card, borderColor: GRAY_200 },
+                          ]}
+                        >
+                          {isSelected && <Check size={11} color={PURPLE_500} strokeWidth={2.5} />}
+                          <Text style={[
+                            s.foodPickerChipText,
+                            isSelected
+                              ? { color: PURPLE_400 }
+                              : isCaution
+                                ? { color: AMBER_700 }
+                                : { color: GRAY_700 },
+                          ]}>
+                            {item.ingredientName}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+            </View>
+          )}
+        </View>
+
         <View style={s.rowBetween}>
           <Text style={s.sectionLabel}>食べたもの（食材ごとに記録）</Text>
           {foodEntries.some(e => e.name.trim()) && (
@@ -1509,6 +1731,19 @@ export default function LogDialog({
         <Text style={s.sectionLabel}>食事メモ（任意）</Text>
         {renderTextInput(foodNote, setFoodNote, '例：嬉しそうに食べた、口を開けるまで時間がかかった…', true)}
         {!foodReady && <Text style={s.foodHint}>1つ以上の食材の量を選んでください</Text>}
+
+        {/* 食材チェックリスト — web parity (ActionButtons.tsx:2267-2275). */}
+        <TouchableOpacity
+          style={s.foodTrackerLinkBtn}
+          onPress={() => {
+            onClose();
+            nav.navigate('FoodTracker');
+          }}
+          activeOpacity={0.7}
+        >
+          <ClipboardList size={16} color="#15803D" strokeWidth={2.5} />
+          <Text style={s.foodTrackerLinkText}>食材チェックリスト</Text>
+        </TouchableOpacity>
       </View>
     );
   } else if (logType === 'temperature') {
@@ -1738,6 +1973,44 @@ export default function LogDialog({
         {renderTextInput(holdMemo, setHoldMemo, '様子など…')}
       </View>
     );
+  } else if (logType === 'walk') {
+    // お散歩 — start + optional end time → duration band on the timeline.
+    // Missing on mobile until client feedback 2026-07-30.
+    const ca = createdAtIso();
+    const startD = ca ? new Date(ca) : new Date();
+    let dur = 0;
+    if (walkEndTime && /^\d{1,2}:\d{2}$/.test(walkEndTime)) {
+      const today = new Date().toISOString().split('T')[0];
+      const e = new Date(`${today}T${walkEndTime.padStart(5, '0')}:00`);
+      if (!isNaN(e.getTime())) dur = Math.round((e.getTime() - startD.getTime()) / 60000);
+    }
+    body = (
+      <View style={s.section}>
+        <Text style={s.sectionLabel}>開始時刻</Text>
+        {renderTimeEdit()}
+        <View style={s.rowBetween}>
+          <Text style={s.sectionLabel}>終了時刻（任意・HH:MM）</Text>
+          {!!walkEndTime && (
+            <TouchableOpacity onPress={() => setWalkEndTime('')}>
+              <Text style={s.clearLink}>クリア</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <TextInput
+          style={s.input}
+          placeholder="HH:MM"
+          placeholderTextColor={GRAY_400}
+          value={walkEndTime}
+          onChangeText={setWalkEndTime}
+          keyboardType="numbers-and-punctuation"
+          maxLength={5}
+        />
+        {dur > 0 && <Text style={[s.infoBoxText, { color: GREEN_600, fontWeight: '700', textAlign: 'center', marginTop: 4 }]}>{dur}分間</Text>}
+        {renderAssignee()}
+        <Text style={s.sectionLabel}>メモ（任意）</Text>
+        {renderTextInput(walkMemo, setWalkMemo, '例：公園まで、赤ちゃんもご機嫌')}
+      </View>
+    );
   } else if (logType === 'medicine') {
     body = (
       <View style={s.section}>
@@ -1843,11 +2116,11 @@ export default function LogDialog({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.overlay}>
-        <View style={s.sheet}>
+        <View style={[s.sheet, isDark && { backgroundColor: colors.card }]}>
           <View style={s.handle} />
           <View style={s.titleRow}>
-            <TitleIcon size={22} color={palette.primary} strokeWidth={2.5} />
-            <Text style={s.title}>{titleText}</Text>
+            <TitleIcon size={22} color={isDark ? colors.primary : palette.primary} strokeWidth={2.5} />
+            <Text style={[s.title, isDark && { color: colors.text }]}>{titleText}</Text>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -2075,6 +2348,50 @@ const s = StyleSheet.create({
   },
   addFoodEntryText: { fontFamily: fonts.bodyBold, fontSize: 13, fontWeight: '700', color: PURPLE_500 },
   foodHint: { fontFamily: fonts.body, fontSize: 11, color: palette.destructive, textAlign: 'center', marginTop: 4 },
+  // 食材チェックリスト — outline pill matching web's green-200/green-700 CTA.
+  foodTrackerLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: '#BBF7D0', // green-200
+    backgroundColor: palette.card,
+  },
+  foodTrackerLinkText: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#15803D' /* green-700 */ },
+
+  // ── Inline food-picker styles (chip UI reads from foodIngredients).
+  foodPickerBox: { borderRadius: radius.md, borderWidth: 1, borderColor: PURPLE_100, overflow: 'hidden' },
+  foodPickerHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: PURPLE_50,
+  },
+  foodPickerHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  foodPickerHeaderText: { fontFamily: fonts.bodyBold, fontSize: 12, color: PURPLE_600 },
+  foodPickerCountPill: {
+    backgroundColor: PURPLE_200, paddingHorizontal: 6, borderRadius: radius.full, minWidth: 20, alignItems: 'center',
+  },
+  foodPickerCountText: { fontFamily: fonts.bodyBold, fontSize: 10, color: PURPLE_600 },
+  foodPickerBody: { padding: 10, backgroundColor: palette.card, gap: 8 },
+  foodPickerEmpty: { fontFamily: fonts.body, fontSize: 11, color: GRAY_400, textAlign: 'center', paddingVertical: 8 },
+  foodPickerCatRow: { flexDirection: 'row', gap: 4, paddingRight: 8 },
+  foodPickerCatBtn: {
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm,
+    borderWidth: 1, borderColor: GRAY_200, backgroundColor: palette.card,
+  },
+  foodPickerCatBtnOn: { backgroundColor: PURPLE_500, borderColor: PURPLE_500 },
+  foodPickerCatText: { fontFamily: fonts.bodyBold, fontSize: 10, color: GRAY_500 },
+  foodPickerCatTextOn: { color: '#fff' },
+  foodPickerChipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  foodPickerChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: radius.md, borderWidth: 2,
+  },
+  foodPickerChipText: { fontFamily: fonts.bodyBold, fontSize: 12 },
 
   clearLink: { fontFamily: fonts.bodyBold, fontSize: 10, fontWeight: '700', color: GRAY_400, textDecorationLine: 'underline' },
 
