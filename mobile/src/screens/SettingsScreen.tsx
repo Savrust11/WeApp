@@ -47,6 +47,8 @@ import {
   Platform,
   Switch,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1302,11 +1304,18 @@ export default function SettingsScreen() {
       </View>
 
       {/* ── Add Child Modal (mobile-only — preserved, matches ChildProfile) ── */}
+      {/* Wrapped in KeyboardAvoidingView + ScrollView so the keyboard
+          doesn't hide the name field (client feedback 2026-08-11). */}
       <Modal visible={showAddChild} transparent animationType="slide" onRequestClose={() => setShowAddChild(false)}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAddChild(false)}>
-          <TouchableOpacity style={[styles.sheetContainer, isDark && { backgroundColor: colors.card }]} activeOpacity={1}>
+          <TouchableOpacity style={[styles.sheetContainer, isDark && { backgroundColor: colors.card }, { maxHeight: '90%' }]} activeOpacity={1}>
             <View style={styles.sheetHandle} />
             <Title style={styles.sheetTitle}>お子さまを追加</Title>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
             <View style={styles.cpFormBlock}>
               <View>
@@ -1406,8 +1415,10 @@ export default function SettingsScreen() {
                 {addChildMutation.isPending ? '登録中...' : '登録する'}
               </Button>
             </View>
+            </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
     </Screen>

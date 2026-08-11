@@ -60,17 +60,13 @@ export default function DatePickerModal({
   onConfirm, onClose, title = '日付を選ぶ',
 }: Props) {
   const { isDark, colors } = useTheme();
-  // Anchor: parse initial or fall back to a sensible baby-birthday default (1 year ago).
+  // Anchor: parse initial; otherwise default to CURRENT month (client
+  // feedback 2026-08-11 — was showing "1 year ago" which felt confusing).
   const nowRef = useMemo(() => new Date(), []);
-  const defaultAnchor = useMemo(() => {
-    const d = new Date(nowRef);
-    d.setFullYear(d.getFullYear() - 1);
-    return d;
-  }, [nowRef]);
 
   const parsed = parseIso(initialDate);
-  const [year, setYear] = useState<number>(parsed?.y ?? defaultAnchor.getFullYear());
-  const [month0, setMonth0] = useState<number>(parsed?.m0 ?? defaultAnchor.getMonth());
+  const [year, setYear] = useState<number>(parsed?.y ?? nowRef.getFullYear());
+  const [month0, setMonth0] = useState<number>(parsed?.m0 ?? nowRef.getMonth());
   const [day, setDay] = useState<number | null>(parsed?.d ?? null);
   const [showYearGrid, setShowYearGrid] = useState(false);
 
