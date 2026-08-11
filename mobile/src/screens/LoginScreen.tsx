@@ -12,7 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { Grape, MessageCircle, Globe, Apple, UserRound } from 'lucide-react-native';
+import { MessageCircle, Globe, Apple, UserRound } from 'lucide-react-native';
+import { Image } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { loginWithGoogle, loginWithApple, getLineLoginUrl } from '../api/auth';
 import { getBaseUrl } from '../api/client';
@@ -231,7 +232,7 @@ export default function LoginScreen() {
       {/* Logo (web Onboarding: gradient circle + Grape, brand title + tagline) */}
       <View style={styles.logoArea}>
         <View style={styles.logoBadge}>
-          <Grape size={48} color={palette.primary} strokeWidth={2} />
+          <Image source={require('../../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 36 }} resizeMode="cover" />
         </View>
         <Title style={styles.logo}>We育</Title>
         <Text style={styles.tagline}>パートナーと一緒に育児を楽しもう</Text>

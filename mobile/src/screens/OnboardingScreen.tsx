@@ -7,9 +7,9 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Image,
 } from 'react-native';
 import {
-  Grape,
   User,
   Crown,
   ChevronRight,
@@ -165,7 +165,7 @@ export default function OnboardingScreen() {
       {/* Brand mark — web Onboarding: circular gradient badge + Grape, black
           title, purple tagline, "Produced by ぶどうの木" credit */}
       <View style={styles.logoBadge}>
-        <Grape size={42} color={palette.primary} strokeWidth={2} />
+        <Image source={require('../../assets/icon.png')} style={{ width: 64, height: 64, borderRadius: 32 }} resizeMode="cover" />
       </View>
       <Title style={styles.logo}>We育</Title>
       <Text style={styles.tagline}>ふたりで育てる、ふたりで楽しむ</Text>
@@ -432,7 +432,7 @@ export default function OnboardingScreen() {
       {step === 'tutorial' && (
         <View style={styles.stepContainer}>
           <View style={styles.iconCircle}>
-            <Grape size={32} color={palette.primary} strokeWidth={2} />
+            <Image source={require('../../assets/icon.png')} style={{ width: 48, height: 48, borderRadius: 24 }} resizeMode="cover" />
           </View>
           <Title style={styles.stepTitle}>チュートリアル</Title>
           <Muted style={styles.stepSubtitle}>We育でできること</Muted>
