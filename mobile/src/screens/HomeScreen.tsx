@@ -42,6 +42,8 @@ import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { getLogs, createLog } from '../api/logs';
 import { useToast } from '../components/Toast';
+import { useVaccineReminderSync } from '../hooks/useVaccineReminderSync';
+import type { RotavirusType } from '../lib/vaccine-schedule';
 import { logRecordedToast } from '../utils/logToast';
 import { getChildren } from '../api/children';
 import {
@@ -575,6 +577,18 @@ export default function HomeScreen() {
   const familyId = user?.familyId ?? 'default';
   const userId   = String(user?.id ?? '');
   const child    = activeChild();
+
+  // 予防接種リマインド — client feedback 2026-08-17 (web → mobile port).
+  // Runs silently: computes due/overdue vaccines and syncs them as
+  // in-app notifications (visible via the Bell icon), rate-limited to
+  // once/day per family+child+leadDays. No UI here beyond the sync itself;
+  // the toggle lives in Settings.
+  useVaccineReminderSync({
+    familyId,
+    childId: child?.id ?? null,
+    birthday: child?.birthday ?? null,
+    rotaType: (child?.rotavirusVaccineType as RotavirusType) ?? null,
+  });
 
   // ── Phase + button visibility ──────────────────────────────────────────────
   const phaseIndex = getPhaseIndex(child?.birthday);

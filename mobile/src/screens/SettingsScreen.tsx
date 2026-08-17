@@ -96,8 +96,15 @@ import {
   Pill,
   Thermometer,
   Calendar as CalendarIcon,
+  Syringe,
 } from 'lucide-react-native';
 import DatePickerModal from '../components/DatePickerModal';
+import {
+  getVaccineNotifyEnabled,
+  setVaccineNotifyEnabled,
+  getVaccineNotifyDays,
+  setVaccineNotifyDays,
+} from '../hooks/useVaccineReminderSync';
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { createChild } from '../api/children';
@@ -295,6 +302,28 @@ export default function SettingsScreen() {
   const [feedEnabled, setFeedEnabled]   = useState(false);
   const [feedMinutes, setFeedMinutes]   = useState(10);
   const [feedInterval, setFeedInterval] = useState(0);
+
+  // ── 予防接種リマインド state (web: VaccineReminderSection, port 2026-08-17) ──
+  const [vaccineNotifyOn, setVaccineNotifyOn] = useState(false);
+  const [vaccineLeadDays, setVaccineLeadDays] = useState(7);
+  const VACCINE_DAY_OPTIONS = [3, 7, 14, 30];
+
+  useEffect(() => {
+    (async () => {
+      const [e, d] = await Promise.all([getVaccineNotifyEnabled(), getVaccineNotifyDays()]);
+      setVaccineNotifyOn(e);
+      setVaccineLeadDays(d);
+    })();
+  }, []);
+
+  const handleVaccineToggle = async (val: boolean) => {
+    setVaccineNotifyOn(val);
+    await setVaccineNotifyEnabled(val);
+  };
+  const handleVaccineLeadDays = async (val: number) => {
+    setVaccineLeadDays(val);
+    await setVaccineNotifyDays(val);
+  };
 
   // Load AsyncStorage-backed prefs once.
   useEffect(() => {
@@ -1150,6 +1179,52 @@ export default function SettingsScreen() {
             </Button>
           </Card>
 
+          {/* ── 予防接種リマインド (web: VaccineReminderSection, port 2026-08-17) ── */}
+          <Card style={[styles.card, styles.cardTeal]}>
+            <View style={styles.cardHead}>
+              <View style={[styles.iconCircle, styles.iconCircleTeal]}>
+                <Syringe size={20} color="#14B8A6" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardHeadTitle}>予防接種リマインド</Text>
+                <Muted style={styles.cardHeadSub}>接種時期が近づいたらお知らせします</Muted>
+              </View>
+            </View>
+
+            <View style={styles.switchRowPlain}>
+              <Text style={styles.optionLabel}>リマインドを有効にする</Text>
+              <Switch
+                value={vaccineNotifyOn}
+                onValueChange={handleVaccineToggle}
+                trackColor={{ false: isDark ? '#3A3A55' : palette.border, true: '#5EEAD4' }}
+                thumbColor={vaccineNotifyOn ? '#14B8A6' : (isDark ? '#888899' : '#f4f3f4')}
+              />
+            </View>
+
+            {vaccineNotifyOn && (
+              <View style={{ marginTop: 12, gap: 8 }}>
+                <Text style={styles.fieldLabel}>何日前に通知しますか？</Text>
+                <View style={styles.chipWrap}>
+                  {VACCINE_DAY_OPTIONS.map((d) => {
+                    const sel = vaccineLeadDays === d;
+                    return (
+                      <TouchableOpacity
+                        key={d}
+                        onPress={() => handleVaccineLeadDays(d)}
+                        style={[styles.chip, sel && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, sel && styles.chipTextActive]}>{d}日前</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Muted style={styles.alarmDesc}>
+                  お子さまの誕生日をもとに、接種時期が近づいた予防接種をお知らせします。通知はホーム画面のベルアイコンからご確認いただけます。
+                </Muted>
+              </View>
+            )}
+          </Card>
+
           {/* ── 14. 改善提案を送る (web: FeedbackSection) ── */}
           <Card style={[styles.card, styles.cardAmber]}>
             <View style={styles.cardHead}>
@@ -1494,6 +1569,8 @@ const styles = StyleSheet.create({
   cardPink: { borderWidth: 2, borderColor: '#FCE7F3' },
   // web ButtonCustomizationSection: border-2 border-indigo-200
   cardIndigo: { borderWidth: 2, borderColor: '#C7D2FE' },
+  // web VaccineReminderSection: border-2 border-teal-100
+  cardTeal: { borderWidth: 2, borderColor: '#CCFBF1' },
 
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   iconCircle: {
@@ -1507,6 +1584,7 @@ const styles = StyleSheet.create({
   iconCircleGray: { backgroundColor: palette.muted },
   iconCircleIndigo: { backgroundColor: '#E0E7FF' },
   iconCirclePink: { backgroundColor: '#FCE7F3' },
+  iconCircleTeal: { backgroundColor: '#CCFBF1' },
   cardHeadTitle: { fontSize: 16, fontFamily: fonts.sans, fontWeight: '700', color: palette.foreground },
   cardHeadSub: { fontSize: 10, color: palette.mutedForeground, marginTop: 1 },
   // web: <Label className="text-base font-bold ... flex items-center gap-2">
