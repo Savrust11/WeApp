@@ -8,8 +8,6 @@ export interface Child {
   gender: 'male' | 'female' | 'other';
   bloodType?: string;
   color: string;
-  /** ロタウイルスワクチンの種類 — 予防接種リマインドのロタ回数判定に使用 */
-  rotavirusVaccineType?: 'rotarix' | 'rotateq' | null;
 }
 
 export async function getChildren(familyId: string | number): Promise<Child[]> {

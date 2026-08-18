@@ -1,29 +1,22 @@
 /**
- * useVaccineReminderSync — mobile port of the web hook
- * (originwebapp/client/src/hooks/use-vaccine-reminder.ts).
+ * useVaccineReminderSync — computes upcoming/overdue vaccine reminders and
+ * pushes them to the notification bell (server-side dedup via dedupeKey).
  *
- * Ported per client request 2026-08-17 ("予防接種リマインド機能をアプリに
- * 移行してほしい"). Same computation logic (computeVaccineReminders) and
- * server sync endpoint (POST /api/vaccine-reminders/sync) as web — only the
- * storage layer differs:
- *   web:    localStorage (synchronous)
- *   mobile: AsyncStorage (async) — settings are loaded once on mount and
- *           re-read whenever the screen re-focuses, since there's no mobile
- *           equivalent of a live storage-change event.
+ * Uses the same JP_VACCINES catalog + matching convention as HealthScreen
+ * (see lib/vaccine-schedule.ts) so a vaccine only stops reminding once it's
+ * recorded exactly the way HealthScreen's own "次の予防接種" list expects.
  *
- * There's no mobile equivalent of the browser Notification API here — the
- * in-app 通知 (Bell icon / notifications list) that the server creates is
- * the only surface for reminders on mobile. A native push notification could
- * be layered on later using the existing expo-notifications wiring in
- * server/push.ts if desired.
+ * Settings (enabled / lead days) live in AsyncStorage, written by
+ * SettingsScreen. HomeScreen stays mounted in the bottom-tab navigator, so
+ * settings are re-read on every focus, not just on initial mount.
  */
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { apiPost } from '../api/client';
+import { apiGet, apiPost } from '../api/client';
 import { computeVaccineReminders, type VaccineReminder } from '../lib/vaccine-reminder';
-import type { RotavirusType } from '../lib/vaccine-schedule';
 
 const KEY_ENABLED = '@weyu_vaccineNotifyEnabled';
 const KEY_LEAD_DAYS = '@weyu_vaccineNotifyDays';
@@ -32,9 +25,6 @@ interface UseVaccineReminderParams {
   familyId: string;
   childId: number | null;
   birthday: string | null | undefined;
-  rotaType: RotavirusType;
-  /** 旧logsテーブル由来の接種済みvaccineId(subType)一覧(Health画面と同じ互換扱い) */
-  legacyVaccinationLogs?: Array<{ subType?: string | null; createdAt?: string | null }>;
 }
 
 /** Read/write helpers so screens (Settings) and this hook share one storage shape. */
@@ -57,7 +47,7 @@ export function useVaccineReminderSync(params: UseVaccineReminderParams): {
   reminders: VaccineReminder[];
   enabled: boolean;
 } {
-  const { familyId, childId, birthday, rotaType, legacyVaccinationLogs } = params;
+  const { familyId, childId, birthday } = params;
   const queryClient = useQueryClient();
   const syncingRef = useRef(false);
 
@@ -74,59 +64,43 @@ export function useVaccineReminderSync(params: UseVaccineReminderParams): {
     loadSettings();
   }, [loadSettings]);
 
-  // Vaccination records: fetched by the caller (HomeScreen already has
-  // access via HealthScreen-style query) — pass in as legacyVaccinationLogs
-  // plus administeredVaccineIds/administeredDates below via a light query.
-  // To keep this hook self-contained like the web version, we fetch here.
-  const [administeredVaccineIds, setAdministeredVaccineIds] = useState<Set<string>>(new Set());
-  const [administeredDates, setAdministeredDates] = useState<Map<string, string>>(new Map());
+  // HomeScreen stays mounted in the bottom-tab navigator, so a plain
+  // mount-only effect misses settings changed in the Settings screen
+  // afterward. Re-read on every focus (client-reported bug 2026-08-18 —
+  // toggle was ON, lead-days correct, but nothing synced because Home
+  // had already mounted with enabled=false before the toggle flip).
+  useFocusEffect(
+    useCallback(() => {
+      loadSettings();
+    }, [loadSettings]),
+  );
+
+  const [vaccineRecords, setVaccineRecords] = useState<Array<{ vaccineId: string }>>([]);
 
   useEffect(() => {
     let cancelled = false;
     if (!familyId) return;
     (async () => {
       try {
-        const { apiGet } = await import('../api/client');
-        const records = await apiGet<Array<{ vaccineId: string; administeredDate: string; childId?: number | null }>>(
+        const records = await apiGet<Array<{ vaccineId: string; childId?: number | null }>>(
           `/api/vaccination-records/${familyId}`,
         );
         if (cancelled) return;
-        const ids = new Set<string>();
-        const dates = new Map<string, string>();
-        for (const r of records) {
-          if (childId && r.childId && r.childId !== childId) continue;
-          ids.add(r.vaccineId);
-          const prev = dates.get(r.vaccineId);
-          if (!prev || r.administeredDate > prev) dates.set(r.vaccineId, r.administeredDate);
-        }
-        for (const l of legacyVaccinationLogs || []) {
-          if (!l.subType) continue;
-          ids.add(l.subType);
-          if (l.createdAt) {
-            const d = l.createdAt.slice(0, 10);
-            const prev = dates.get(l.subType);
-            if (!prev || d > prev) dates.set(l.subType, d);
-          }
-        }
-        setAdministeredVaccineIds(ids);
-        setAdministeredDates(dates);
+        const filtered = childId
+          ? records.filter((r) => !r.childId || r.childId === childId)
+          : records;
+        setVaccineRecords(filtered);
       } catch {
         // Non-fatal — reminders simply won't compute this pass.
       }
     })();
     return () => { cancelled = true; };
-  }, [familyId, childId, legacyVaccinationLogs]);
+  }, [familyId, childId]);
 
   const reminders = useMemo(() => {
     if (!birthday) return [];
-    return computeVaccineReminders({
-      birthday,
-      rotaType,
-      administeredVaccineIds,
-      administeredDates,
-      leadDays,
-    });
-  }, [birthday, rotaType, administeredVaccineIds, administeredDates, leadDays]);
+    return computeVaccineReminders({ birthday, vaccineRecords, leadDays });
+  }, [birthday, vaccineRecords, leadDays]);
 
   useEffect(() => {
     if (!enabled || reminders.length === 0 || !familyId) return;

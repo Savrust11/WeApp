@@ -25,6 +25,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Card, Button, Text, Title, Muted } from '../theme/ui';
 import DatePickerModal from '../components/DatePickerModal';
+import { JP_VACCINES, monthsDiff, type JpVaccine, type JpVaccineDose } from '../lib/vaccine-schedule';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -118,120 +119,10 @@ interface Child {
   gender: string;
 }
 
-interface JpVaccineDose {
-  label: string;
-  ageMin: number;
-  ageMax: number;
-}
-
-interface JpVaccine {
-  id: string;
-  name: string;
-  doses: JpVaccineDose[];
-  category: 'required' | 'optional';
-}
-
-// ─── JP Standard Vaccine Schedule ────────────────────────────────────────────
-
-const JP_VACCINES: JpVaccine[] = [
-  {
-    id: 'hep_b',
-    name: 'B型肝炎',
-    doses: [
-      { label: '1回目', ageMin: 0, ageMax: 2 },
-      { label: '2回目', ageMin: 1, ageMax: 3 },
-      { label: '3回目', ageMin: 6, ageMax: 9 },
-    ],
-    category: 'required',
-  },
-  {
-    id: 'rota',
-    name: 'ロタウイルス',
-    doses: [
-      { label: '1回目', ageMin: 2, ageMax: 3 },
-      { label: '2回目', ageMin: 3, ageMax: 4 },
-    ],
-    category: 'required',
-  },
-  {
-    id: 'hib',
-    name: 'ヒブ(Hib)',
-    doses: [
-      { label: '1回目', ageMin: 2, ageMax: 3 },
-      { label: '2回目', ageMin: 3, ageMax: 4 },
-      { label: '3回目', ageMin: 4, ageMax: 5 },
-      { label: '追加', ageMin: 12, ageMax: 17 },
-    ],
-    category: 'required',
-  },
-  {
-    id: 'pcv',
-    name: '小児用肺炎球菌(PCV)',
-    doses: [
-      { label: '1回目', ageMin: 2, ageMax: 3 },
-      { label: '2回目', ageMin: 3, ageMax: 4 },
-      { label: '3回目', ageMin: 4, ageMax: 5 },
-      { label: '追加', ageMin: 12, ageMax: 17 },
-    ],
-    category: 'required',
-  },
-  {
-    id: 'dpt_ipv',
-    name: '四種混合(DPT-IPV)',
-    doses: [
-      { label: '1回目', ageMin: 3, ageMax: 4 },
-      { label: '2回目', ageMin: 4, ageMax: 5 },
-      { label: '3回目', ageMin: 5, ageMax: 6 },
-      { label: '追加', ageMin: 18, ageMax: 24 },
-    ],
-    category: 'required',
-  },
-  {
-    id: 'bcg',
-    name: 'BCG',
-    doses: [{ label: '1回目', ageMin: 5, ageMax: 8 }],
-    category: 'required',
-  },
-  {
-    id: 'mr',
-    name: '麻疹・風疹(MR)',
-    doses: [
-      { label: '1期', ageMin: 12, ageMax: 24 },
-      { label: '2期', ageMin: 60, ageMax: 84 },
-    ],
-    category: 'required',
-  },
-  {
-    id: 'varicella',
-    name: '水痘',
-    doses: [
-      { label: '1回目', ageMin: 12, ageMax: 15 },
-      { label: '2回目', ageMin: 18, ageMax: 23 },
-    ],
-    category: 'required',
-  },
-  {
-    id: 'je',
-    name: '日本脳炎',
-    doses: [
-      { label: '1回目', ageMin: 36, ageMax: 48 },
-      { label: '2回目', ageMin: 37, ageMax: 49 },
-    ],
-    category: 'required',
-  },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayStr(): string {
   return new Date().toISOString().split('T')[0];
-}
-
-function monthsDiff(birthday: string, now: Date): number {
-  const birth = new Date(birthday);
-  const years = now.getFullYear() - birth.getFullYear();
-  const months = now.getMonth() - birth.getMonth();
-  return years * 12 + months;
 }
 
 function formatJpDate(dateStr: string): string {

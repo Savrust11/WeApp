@@ -43,7 +43,6 @@ import { useChildStore } from '../store/childStore';
 import { getLogs, createLog } from '../api/logs';
 import { useToast } from '../components/Toast';
 import { useVaccineReminderSync } from '../hooks/useVaccineReminderSync';
-import type { RotavirusType } from '../lib/vaccine-schedule';
 import { logRecordedToast } from '../utils/logToast';
 import { getChildren } from '../api/children';
 import {
@@ -587,7 +586,6 @@ export default function HomeScreen() {
     familyId,
     childId: child?.id ?? null,
     birthday: child?.birthday ?? null,
-    rotaType: (child?.rotavirusVaccineType as RotavirusType) ?? null,
   });
 
   // ── Phase + button visibility ──────────────────────────────────────────────
