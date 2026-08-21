@@ -108,7 +108,7 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { createChild } from '../api/children';
-import { joinFamily } from '../api/auth';
+import { joinFamily, deleteAccount as deleteAccountApi } from '../api/auth';
 import { apiRequest } from '../api/client';
 import type { RootStackParamList } from '../navigation';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
@@ -510,6 +510,35 @@ export default function SettingsScreen() {
 
   const handleLogout = () => {
     confirmAction('ログアウト', 'ログアウトしますか？', doLogout);
+  };
+
+  // ── Delete account (Apple App Store Guideline 5.1.1(v)) ──────────────────────
+  // Two-step confirm since this is permanent and irreversible.
+  const doDeleteAccount = async () => {
+    try {
+      await deleteAccountApi();
+    } catch {
+      notify('削除に失敗しました', 'ネットワーク接続を確認し、もう一度お試しください');
+      return;
+    }
+    await storeLogout();
+    useChildStore.getState().setChildren([]);
+    queryClient.clear();
+    notify('アカウントを削除しました', 'ご利用ありがとうございました');
+  };
+
+  const handleDeleteAccount = () => {
+    confirmAction(
+      'アカウントを削除',
+      'アカウントを削除すると、ログイン情報を含むすべてのデータが完全に削除され、元に戻せません。',
+      () => {
+        confirmAction(
+          '本当に削除しますか？',
+          'この操作は取り消せません。',
+          doDeleteAccount,
+        );
+      },
+    );
   };
 
   // ── Copy / share pairing code (web: PairingSection.handleCopy) ───────────────
@@ -1369,6 +1398,12 @@ export default function SettingsScreen() {
             <LogOut size={16} color={palette.destructive} />
             <Text style={styles.logoutText}>ログアウト</Text>
           </TouchableOpacity>
+
+          {/* ── アカウント削除 (Apple App Store review requirement) ── */}
+          <TouchableOpacity style={styles.deleteAccountBtn} onPress={handleDeleteAccount}>
+            <Trash2 size={16} color={palette.mutedForeground} />
+            <Text style={styles.deleteAccountText}>アカウントを削除</Text>
+          </TouchableOpacity>
         </>
       )}
 
@@ -1830,6 +1865,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FCEDED',
   },
   logoutText: { color: palette.destructive, fontSize: 14, fontFamily: fonts.bodyBold, fontWeight: '700' },
+
+  deleteAccountBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    padding: 16,
+    marginTop: 8,
+  },
+  deleteAccountText: { color: palette.mutedForeground, fontSize: 13, fontFamily: fonts.body },
 
   versionWrap: { alignItems: 'center', paddingVertical: 20 },
   versionMain: { fontSize: 11, color: '#C9C2D2', fontFamily: fonts.bodyBold, fontWeight: '700' },

@@ -26,6 +26,11 @@ export async function logout() {
   return apiPost('/api/auth/mobile/logout');
 }
 
+/** Permanently deletes the caller's account (Apple Guideline 5.1.1(v)). */
+export async function deleteAccount() {
+  return apiPost('/api/auth/delete-account');
+}
+
 /** Returns the URL to open in a browser for LINE OAuth (mobile deep-link flow). */
 export function getLineLoginUrl(baseUrl: string): string {
   return `${baseUrl}/api/auth/line?mobile=true`;
