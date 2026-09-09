@@ -14,7 +14,6 @@
  *   7. カスタム育児項目        (list / delete; hidden if空)     [<CustomChildcareSection>]
  *   8. 表示するボタン          (phase button customization)    [<ButtonCustomizationSection>]
  *   9. ペアリング              (code / copy / partner-join)    [<PairingSection>]
- *  10. アプリとして使う        → native-equivalent note         [<InstallGuide>]
  *  11. 画面の明るさ            (light / dark / auto)           [<ThemeSection>]
  *  12. 表示設定                (Weボード / チーム育児スキル)    [<FeatureToggleSection>]
  *  13. 授乳アラーム            (目標間隔 / 有効 / 通知タイミング)[<FeedingNotificationSection>]
@@ -80,7 +79,6 @@ import {
   MessagesSquare,
   MessageSquare,
   HelpCircle,
-  Smartphone,
   Save,
   Plus,
   Info,
@@ -1042,27 +1040,6 @@ export default function SettingsScreen() {
             </Button>
           </Card>
 
-          {/* ── 10. アプリとして使う ──
-              Web's <InstallGuide> is PWA-specific ("Safariの共有→ホーム画面に追加" /
-              Chrome "アプリをインストール"). On native this app is ALREADY an
-              installed app, so the web install steps do not apply. We show the
-              nearest sensible native equivalent (an info note) instead of
-              fabricating native install steps. */}
-          <Card style={[styles.card, styles.cardBlue]}>
-            <View style={styles.cardHead}>
-              <View style={[styles.iconCircle, styles.iconCircleBlue]}>
-                <Smartphone size={20} color="#5B8DD5" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardHeadTitle}>アプリとして使う</Text>
-                <Muted style={styles.cardHeadSub}>ホーム画面に追加してネイティブアプリのように</Muted>
-              </View>
-            </View>
-            <Muted style={styles.alarmDesc}>
-              この画面はインストール済みのネイティブアプリとして動作しています。Web版でホーム画面に追加する手順は不要です。
-            </Muted>
-          </Card>
-
           {/* ── 11. 画面の明るさ (web: ThemeSection) ── */}
           <Card style={styles.card}>
             <View style={styles.cardHead}>
@@ -1597,7 +1574,6 @@ const styles = StyleSheet.create({
   // web: border-2 border-green-200
   cardGreen: { borderWidth: 2, borderColor: '#BFE3CD' },
   // web: border border-blue-100
-  cardBlue: { borderColor: '#C5D9F0' },
   // web: border-2 border-amber-200
   cardAmber: { borderWidth: 2, borderColor: '#F0DDB0' },
   // web FeedingNotificationSection: border-2 border-pink-100
@@ -1614,7 +1590,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   iconCircleGreen: { backgroundColor: '#E3F3EA' },
-  iconCircleBlue: { backgroundColor: '#E4EEFA' },
   iconCircleAmber: { backgroundColor: '#FBEFD6' },
   iconCircleGray: { backgroundColor: palette.muted },
   iconCircleIndigo: { backgroundColor: '#E0E7FF' },
