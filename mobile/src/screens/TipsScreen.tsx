@@ -39,6 +39,7 @@ import {
   ExternalLink,
   Sparkles,
   Syringe,
+  KeyRound,
   Trophy,
   Sun,
   Clock,
@@ -203,6 +204,33 @@ function WhatsNew() {
         title="予防接種リマインド"
         desc="お子さまの生年月日と接種記録をもとに、次の予防接種時期をホーム画面でお知らせします。通知を始めるタイミングは3日前・7日前・14日前・30日前から選べます。"
         hint="設定 → 予防接種リマインド"
+      />
+
+      <UpdateCard
+        Icon={Moon}
+        iconColor="#6366F1"
+        iconBg="#E0E7FF"
+        title="ホームから寝かしつけ方法・場所を記録"
+        desc="ホーム画面で「ねんね開始」を押すときに、抱っこ・添い寝などの寝かしつけ方法と、ベッド・布団などの場所をその場で選べるようになりました。"
+      />
+
+      <UpdateCard
+        Icon={BarChart3}
+        iconColor="#8B5CF6"
+        iconBg="#EDE9FE"
+        title="寝かしつけの傾向を分析"
+        desc="ダッシュボードで、寝かしつけ方法や場所ごとの寝つきやすさを振り返れるようになりました。ご家庭に合った寝かしつけを見つけるヒントとして活用できます。"
+      />
+
+      <UpdateCard
+        Icon={KeyRound}
+        iconColor="#059669"
+        iconBg="#D1FAE5"
+        title="家族コードを安全に再発行"
+        desc="家族コードが第三者に知られた心配があるときは、設定画面から新しいコードへ変更できます。古い形式のコードも、より推測されにくい安全な形式へ移行できます。"
+        note="再発行後は、パートナーにも新しい家族コードを共有してください。"
+        noteBg="#D1FAE5"
+        noteColor="#047857"
       />
 
       <Text style={[styles.eyebrowLabel, { marginTop: 24 }]}>2026年4月21日のアップデート</Text>
