@@ -47,6 +47,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
 import DatePickerModal from './DatePickerModal';
+import ScrollTimePicker, { nowHHMM } from './ScrollTimePicker';
 
 // ── Food-picker types + categories (kept in sync with FoodTrackerScreen).
 // Client feedback 2026-07-30: reintroduce inline "select from checklist"
@@ -781,7 +782,7 @@ export default function LogDialog({
     };
     if (!sleepQuickNoEnd && sleepQuickEnd) {
       const end = mkDate(sleepQuickEnd);
-      if (end <= start) return;
+      if (end <= start) { setManualSleepError('起床時刻は入眠時刻より後にしてください'); return; }
       const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
       onManualSleep?.({ durationMin, startedAt: start.toISOString(), ...settlingDetails });
     } else {
@@ -1026,19 +1027,13 @@ export default function LogDialog({
       <View style={{ marginTop: 4 }}>
         {showTimeEdit ? (
           <View>
-            <Text style={s.sectionLabel}>記録時刻（HH:MM）</Text>
-            <TextInput
-              style={s.input}
-              placeholder={display}
-              placeholderTextColor={GRAY_400}
-              value={logTime}
-              onChangeText={setLogTime}
-              keyboardType="numbers-and-punctuation"
-              maxLength={5}
-            />
+            <Text style={s.sectionLabel}>記録時刻</Text>
+            {/* Wheel picker replaces the typed HH:MM input (client feedback
+                2026-09-09 — web parity: select, don't type). */}
+            <ScrollTimePicker value={logTime || nowHHMM()} onChange={setLogTime} />
           </View>
         ) : (
-          <TouchableOpacity style={s.timeChip} onPress={() => setShowTimeEdit(true)}>
+          <TouchableOpacity style={s.timeChip} onPress={() => { if (!logTime) setLogTime(nowHHMM()); setShowTimeEdit(true); }}>
             <Clock size={13} color={GRAY_400} strokeWidth={2.5} />
             <Text style={s.timeChipText}>{display}</Text>
             <Text style={s.timeChipHint}>時間を変更</Text>
@@ -1102,7 +1097,7 @@ export default function LogDialog({
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.outlineBtn, { borderColor: INDIGO_200, marginTop: 8 }]}
-            onPress={() => { setSleepStep('manual'); setManualNoEnd(false); setManualSleepError(''); setManualDate(new Date().toISOString().split('T')[0]); }}
+            onPress={() => { setSleepStep('manual'); setManualNoEnd(false); setManualSleepError(''); setManualDate(new Date().toISOString().split('T')[0]); if (!manualStart) setManualStart(nowHHMM()); if (!manualEnd) setManualEnd(nowHHMM()); }}
           >
             <ClipboardList size={16} color={INDIGO_600} strokeWidth={2.5} />
             <Text style={[s.outlineBtnText, { color: INDIGO_600 }]}>昼寝を記録</Text>
@@ -1127,15 +1122,17 @@ export default function LogDialog({
           </TouchableOpacity>
           <View style={s.labelWithIcon}>
             <Moon size={14} color={GRAY_500} strokeWidth={2.5} />
-            <Text style={s.sectionLabel}>入眠時刻（HH:MM）</Text>
+            <Text style={s.sectionLabel}>入眠時刻</Text>
           </View>
-          <TextInput style={s.input} placeholder="HH:MM" placeholderTextColor={GRAY_400}
-            value={manualStart} onChangeText={t => { setManualStart(t); setManualSleepError(''); }}
-            keyboardType="numbers-and-punctuation" maxLength={5} />
+          {/* Wheel picker replaces typed HH:MM (client feedback 2026-09-09). */}
+          <ScrollTimePicker
+            value={manualStart || nowHHMM()}
+            onChange={(t) => { setManualStart(t); setManualSleepError(''); }}
+          />
           <View style={s.rowBetween}>
             <View style={s.labelWithIcon}>
               <Sun size={14} color={GRAY_500} strokeWidth={2.5} />
-              <Text style={s.sectionLabel}>起床時刻（HH:MM）</Text>
+              <Text style={s.sectionLabel}>起床時刻</Text>
             </View>
             <TouchableOpacity
               style={[s.miniToggle, manualNoEnd && s.miniToggleOn]}
@@ -1147,9 +1144,10 @@ export default function LogDialog({
             </TouchableOpacity>
           </View>
           {!manualNoEnd && (
-            <TextInput style={s.input} placeholder="HH:MM" placeholderTextColor={GRAY_400}
-              value={manualEnd} onChangeText={t => { setManualEnd(t); setManualSleepError(''); }}
-              keyboardType="numbers-and-punctuation" maxLength={5} />
+            <ScrollTimePicker
+              value={manualEnd || nowHHMM()}
+              onChange={(t) => { setManualEnd(t); setManualSleepError(''); }}
+            />
           )}
           {manualNoEnd && (
             <View style={s.infoBox}>
@@ -1206,7 +1204,7 @@ export default function LogDialog({
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.outlineBtn, { borderColor: INDIGO_200, marginTop: 10 }]}
-            onPress={() => { setSleepShowPicker(true); setSleepQuickNoEnd(false); setSleepQuickEnd(''); }}
+            onPress={() => { setSleepShowPicker(true); setSleepQuickNoEnd(false); if (!sleepQuickStart) setSleepQuickStart(nowHHMM()); setSleepQuickEnd(nowHHMM()); }}
           >
             <Clock size={16} color={INDIGO_600} strokeWidth={2.5} />
             <Text style={[s.outlineBtnText, { color: INDIGO_600 }]}>時刻を指定して記録</Text>
@@ -1222,19 +1220,21 @@ export default function LogDialog({
         <View style={s.section}>
           <View style={s.labelWithIcon}>
             <Moon size={14} color={GRAY_500} strokeWidth={2.5} />
-            <Text style={s.sectionLabel}>入眠時刻（HH:MM）</Text>
+            <Text style={s.sectionLabel}>入眠時刻</Text>
           </View>
-          <TextInput style={s.input} placeholder="HH:MM" placeholderTextColor={GRAY_400}
-            value={sleepQuickStart} onChangeText={setSleepQuickStart}
-            keyboardType="numbers-and-punctuation" maxLength={5} />
+          {/* Wheel picker replaces typed HH:MM (client feedback 2026-09-09). */}
+          <ScrollTimePicker
+            value={sleepQuickStart || nowHHMM()}
+            onChange={(t) => { setSleepQuickStart(t); setManualSleepError(''); }}
+          />
           <View style={s.rowBetween}>
             <View style={s.labelWithIcon}>
               <Sun size={14} color={GRAY_500} strokeWidth={2.5} />
-              <Text style={s.sectionLabel}>起床時刻（HH:MM）</Text>
+              <Text style={s.sectionLabel}>起床時刻</Text>
             </View>
             <TouchableOpacity
               style={[s.miniToggle, sleepQuickNoEnd && s.miniToggleOn]}
-              onPress={() => { setSleepQuickNoEnd(v => !v); setSleepQuickEnd(''); }}
+              onPress={() => { setSleepQuickNoEnd(v => !v); setSleepQuickEnd(''); setManualSleepError(''); }}
             >
               <Text style={[s.miniToggleText, sleepQuickNoEnd && s.miniToggleTextOn]}>
                 {sleepQuickNoEnd ? 'まだ起きていない' : '入力しない'}
@@ -1242,9 +1242,10 @@ export default function LogDialog({
             </TouchableOpacity>
           </View>
           {!sleepQuickNoEnd && (
-            <TextInput style={s.input} placeholder="HH:MM" placeholderTextColor={GRAY_400}
-              value={sleepQuickEnd} onChangeText={setSleepQuickEnd}
-              keyboardType="numbers-and-punctuation" maxLength={5} />
+            <ScrollTimePicker
+              value={sleepQuickEnd || nowHHMM()}
+              onChange={(t) => { setSleepQuickEnd(t); setManualSleepError(''); }}
+            />
           )}
           {sleepQuickNoEnd && (
             <View style={s.infoBox}>
@@ -1256,6 +1257,7 @@ export default function LogDialog({
               <Text style={[s.infoBoxText, { fontWeight: '900', color: INDIGO_700 }]}>{fmtElapsed(dur)}のねんね</Text>
             </View>
           )}
+          {!!manualSleepError && <Text style={s.errorText}>{manualSleepError}</Text>}
           <SettlingSelector
             settlingMethod={settlingMethod} setSettlingMethod={setSettlingMethod}
             settlingMinutes={settlingMinutes} setSettlingMinutes={setSettlingMinutes}

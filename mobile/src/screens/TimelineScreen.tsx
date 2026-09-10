@@ -52,6 +52,7 @@ import { Text, Title } from '../theme/ui';
 import { LogIcon, getLogVisual } from '../theme/logIcons';
 import WeHeader from '../components/WeHeader';
 import LogDialog, { type LogSaveData } from '../components/LogDialog';
+import ScrollTimePicker from '../components/ScrollTimePicker';
 import {
   PHASE_BUTTONS, PHASE_LABELS, getPhaseIndex, HIDDEN_BY_DEFAULT,
 } from '../screens/HomeScreen';
@@ -643,17 +644,9 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
           </View>
 
           <Text style={ed.label}>記録時間</Text>
-          {/* keyboardType was "numeric" — iOS's numeric keyboard has no ":" key,
-              so users could not type "13:45" and the input appeared frozen.
-              "numbers-and-punctuation" exposes the punctuation row. */}
-          <TextInput
-            style={ed.input}
-            value={timeStr}
-            onChangeText={setTimeStr}
-            placeholder="HH:MM"
-            keyboardType="numbers-and-punctuation"
-            maxLength={5}
-          />
+          {/* Wheel picker replaces the typed HH:MM input (client feedback
+              2026-09-09 — web parity: select, don't type). */}
+          <ScrollTimePicker value={timeStr} onChange={setTimeStr} />
 
           {log.type === 'sleep' && (
             <>
