@@ -11,15 +11,19 @@ import {
   TextInput,
   Platform,
   Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 
 // Web grid: `grid grid-cols-3 gap-3 px-6 max-w-md` → 3 cols, gap 12, px 24,
 // content capped at 448. Compute the exact tile width so it matches 1:1.
+// GRID_W/TILE_W are computed inside the component via useWindowDimensions()
+// (not here at module scope) — Dimensions.get('window') is read once at
+// import time and can be stale/wrong on some Android devices, which was
+// causing the 3rd quick-log tile to overflow off-screen and look like a
+// 2-column grid (client-reported bug 2026-09-09).
 const GRID_MAX = 448;
 const GRID_PAD = 24; // px-6
 const GRID_GAP = 12; // gap-3
-const GRID_W = Math.min(Dimensions.get('window').width, GRID_MAX);
-const TILE_W = (GRID_W - GRID_PAD * 2 - GRID_GAP * 2) / 3;
 // Custom-modal icon picker: web ActionButtons.tsx:3736 uses grid-cols-6 gap-2.
 // Modal sheet has 20px horiz padding each side; 6 cols with 8px gaps.
 const MODAL_ICON_GAP = 8;
@@ -572,6 +576,9 @@ export default function HomeScreen() {
   const toast = useToast();
   const { isDark, colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+  const { width: windowWidth } = useWindowDimensions();
+  const GRID_W = Math.min(windowWidth, GRID_MAX);
+  const TILE_W = (GRID_W - GRID_PAD * 2 - GRID_GAP * 2) / 3;
 
   const familyId = user?.familyId ?? 'default';
   const userId   = String(user?.id ?? '');
@@ -990,11 +997,21 @@ export default function HomeScreen() {
       delete base.memo;
     }
 
-    // For sleep with no active session, start a new sleep session tracking
-    if (data.type === 'sleep' && !activeSleepSession) {
-      startSleepSession({ familyId, createdBy: userId, childId: activeChildId })
-        .then(setActiveSleepSession)
-        .catch(() => {});
+    // Sleep never creates a log through this generic path — starting a
+    // session (below) is the only "creation" event. The actual completed
+    // sleep log (with duration) is auto-created server-side when the
+    // session ends (see handleEndSleepSession/handleManualSleep) or via
+    // /api/sleep-sessions/manual. Creating one here too was producing an
+    // extra, duration-less "sleep" log at start, on top of the server's own
+    // end-of-session log — fragmenting one sleep into multiple timeline
+    // entries (client-reported bug 2026-09-09).
+    if (data.type === 'sleep') {
+      if (!activeSleepSession) {
+        startSleepSession({ familyId, createdBy: userId, childId: activeChildId })
+          .then(setActiveSleepSession)
+          .catch(() => {});
+      }
+      return;
     }
 
     data.assignees.forEach((a) => {
@@ -1007,13 +1024,9 @@ export default function HomeScreen() {
     try {
       await endSleepSession(sessionId);
       setActiveSleepSession(null);
-      // Create a sleep log entry
-      if (activeChildId) {
-        createLogMutation.mutate({
-          type: 'sleep', childId: activeChildId,
-          familyId: String(familyId), userId, points: 1,
-        } as any);
-      }
+      // The server already creates the completed "sleep" log (with the
+      // correct duration) as part of ending the session — just refresh.
+      queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
     } catch {
       showAlert('終了の記録に失敗しました。');
     }
@@ -1024,11 +1037,9 @@ export default function HomeScreen() {
     try {
       await manualSleepEntry({ familyId, createdBy: userId, childId: activeChildId, ...data });
       setActiveSleepSession(null);
-      createLogMutation.mutate({
-        type: 'sleep', childId: activeChildId,
-        familyId: String(familyId), userId, points: 1,
-        memo: `${data.durationMin}分`,
-      } as any);
+      // The server already creates the completed "sleep" log for manual
+      // entries too — just refresh.
+      queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
     } catch {
       showAlert('睡眠記録の保存に失敗しました。');
     }

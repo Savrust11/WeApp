@@ -32,7 +32,7 @@ import {
   Pill, Thermometer, Heart, UtensilsCrossed, Droplets, MessageCircle,
   ThumbsUp, Palette, Award, CalendarCheck, GraduationCap, Sun, Plus, Minus,
   ClipboardList, CircleDot, Hand, Coffee, Scissors, Stethoscope, Check, X,
-  Edit3, Clock, ChevronDown, ChevronUp, Timer,
+  Edit3, Clock, ChevronDown, ChevronUp, Timer, Calendar,
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -46,6 +46,7 @@ import { useChildStore } from '../store/childStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
 import { Text } from '../theme/ui';
+import DatePickerModal from './DatePickerModal';
 
 // ── Food-picker types + categories (kept in sync with FoodTrackerScreen).
 // Client feedback 2026-07-30: reintroduce inline "select from checklist"
@@ -434,6 +435,11 @@ export default function LogDialog({
   const [manualStart, setManualStart] = useState('');
   const [manualEnd,   setManualEnd]   = useState('');
   const [manualNoEnd, setManualNoEnd] = useState(false);
+  // Date for manual sleep entry — was hardcoded to "today", so there was no
+  // way to fix a past day's missing/wrong sleep record (client-reported bug
+  // 2026-09-09).
+  const [manualDate, setManualDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [showManualDatePicker, setShowManualDatePicker] = useState(false);
   const [manualSleepError, setManualSleepError] = useState('');
   const [sleepElapsedMin, setSleepElapsedMin] = useState(0);
   const sleepElapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -636,8 +642,7 @@ export default function LogDialog({
   }, [exprManualMode, exprManualLeft, exprManualRight, exprLeftSec, exprRightSec, exprAmount, assignees, logTime]);
 
   const handleManualSleepSubmit = () => {
-    const today  = new Date().toISOString().split('T')[0];
-    const mkDate = (hhmm: string) => new Date(`${today}T${/^\d{1,2}:\d{2}$/.test(hhmm) ? hhmm.padStart(5, '0') : '00:00'}:00`);
+    const mkDate = (hhmm: string) => new Date(`${manualDate}T${/^\d{1,2}:\d{2}$/.test(hhmm) ? hhmm.padStart(5, '0') : '00:00'}:00`);
     const start  = manualStart ? mkDate(manualStart) : null;
     if (!start || isNaN(start.getTime())) { setManualSleepError('入眠時刻を入力してください'); return; }
     if (manualNoEnd) {
@@ -947,7 +952,7 @@ export default function LogDialog({
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.outlineBtn, { borderColor: INDIGO_200, marginTop: 8 }]}
-            onPress={() => { setSleepStep('manual'); setManualNoEnd(false); setManualSleepError(''); }}
+            onPress={() => { setSleepStep('manual'); setManualNoEnd(false); setManualSleepError(''); setManualDate(new Date().toISOString().split('T')[0]); }}
           >
             <ClipboardList size={16} color={INDIGO_600} strokeWidth={2.5} />
             <Text style={[s.outlineBtnText, { color: INDIGO_600 }]}>昼寝を記録</Text>
@@ -955,12 +960,21 @@ export default function LogDialog({
         </View>
       );
     } else if (sleepStep === 'manual') {
-      const today = new Date().toISOString().split('T')[0];
-      const sd = manualStart && /^\d{1,2}:\d{2}$/.test(manualStart) ? new Date(`${today}T${manualStart.padStart(5, '0')}:00`) : null;
-      const ed = manualEnd && /^\d{1,2}:\d{2}$/.test(manualEnd) ? new Date(`${today}T${manualEnd.padStart(5, '0')}:00`) : null;
+      const sd = manualStart && /^\d{1,2}:\d{2}$/.test(manualStart) ? new Date(`${manualDate}T${manualStart.padStart(5, '0')}:00`) : null;
+      const ed = manualEnd && /^\d{1,2}:\d{2}$/.test(manualEnd) ? new Date(`${manualDate}T${manualEnd.padStart(5, '0')}:00`) : null;
       const dur = sd && ed ? Math.round((ed.getTime() - sd.getTime()) / 60000) : 0;
+      const manualDateObj = new Date(`${manualDate}T00:00:00`);
       body = (
         <View style={s.section}>
+          <View style={s.labelWithIcon}>
+            <Calendar size={14} color={GRAY_500} strokeWidth={2.5} />
+            <Text style={s.sectionLabel}>日付</Text>
+          </View>
+          <TouchableOpacity style={s.input} onPress={() => setShowManualDatePicker(true)}>
+            <Text style={{ fontSize: 15, color: '#374151' }}>
+              {manualDateObj.getFullYear()}年{manualDateObj.getMonth() + 1}月{manualDateObj.getDate()}日
+            </Text>
+          </TouchableOpacity>
           <View style={s.labelWithIcon}>
             <Moon size={14} color={GRAY_500} strokeWidth={2.5} />
             <Text style={s.sectionLabel}>入眠時刻（HH:MM）</Text>
@@ -2144,6 +2158,15 @@ export default function LogDialog({
           </View>
         </View>
       </View>
+
+      <DatePickerModal
+        visible={showManualDatePicker}
+        initialDate={manualDate}
+        maxDate={new Date()}
+        onConfirm={(iso) => setManualDate(iso)}
+        onClose={() => setShowManualDatePicker(false)}
+        title="ねんねの日付を選ぶ"
+      />
     </Modal>
   );
 }
