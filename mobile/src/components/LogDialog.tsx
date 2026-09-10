@@ -802,11 +802,30 @@ export default function LogDialog({
         handleExpressSubmit();
         return;
       case 'diaper': {
-        const subType = diaperPee && diaperPoop ? 'both' : diaperPoop ? 'poop' : 'pee';
+        // When both are selected, save as TWO separate entries (diaper_wet +
+        // diaper_poop) rather than picking one `type`. Every downstream
+        // consumer (timeline icon/label, today's-summary counts, PDF export)
+        // keys off `type`, not `subType`, so a single "both" entry with
+        // type=diaper_wet was silently invisible everywhere poop is counted
+        // (client-reported bug 2026-09-10).
+        if (diaperPee && diaperPoop) {
+          finishWith({
+            ...data, type: 'diaper_wet', subType: 'both',
+            diaperPee: true, diaperPoop: false,
+          });
+          finishWith({
+            ...data, type: 'diaper_poop', subType: 'both',
+            diaperPee: false, diaperPoop: true,
+            poopColor: poopColor || undefined,
+            poopConsistency: poopConsistency || undefined,
+            stoolAmount: stoolAmount || undefined,
+          });
+          return;
+        }
         data = {
           ...data,
-          type: diaperPoop && !diaperPee ? 'diaper_poop' : 'diaper_wet',
-          subType,
+          type: diaperPoop ? 'diaper_poop' : 'diaper_wet',
+          subType: diaperPoop ? 'poop' : 'pee',
           diaperPee, diaperPoop,
           poopColor:       diaperPoop ? poopColor || undefined : undefined,
           poopConsistency: diaperPoop ? poopConsistency || undefined : undefined,

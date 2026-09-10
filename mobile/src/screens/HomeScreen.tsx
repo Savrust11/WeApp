@@ -207,8 +207,13 @@ export function getPhaseIndex(birthday: string | undefined): number {
   if (!birthday) return 0;
   const birth = new Date(birthday);
   if (isNaN(birth.getTime())) return 0;
-  const now = new Date();
-  const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  // Day-precise (date-fns differenceInMonths), matching the age calculation
+  // used for the "すくすく成長中" summary card (childAgeMonths below) — the
+  // two previously used different formulas (this one ignored day-of-month),
+  // so right around a birthday they'd disagree on which phase the child was
+  // in, showing infant-mode summary text next to a toddler-mode quick-log
+  // grid or vice versa (client-reported bug 2026-09-10).
+  const months = differenceInMonths(new Date(), birth);
   if (months < 12) return 0;
   if (months < 24) return 1;
   if (months < 48) return 2;
