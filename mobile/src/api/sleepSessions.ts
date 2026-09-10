@@ -23,6 +23,10 @@ export function getActiveSleepSession(familyId: number | string): Promise<SleepS
   return apiGet<SleepSession | null>(`/api/sleep-sessions/${familyId}/active`).catch(() => null);
 }
 
+export function getSleepSessions(familyId: number | string): Promise<SleepSession[]> {
+  return apiGet<SleepSession[]>(`/api/sleep-sessions/${familyId}`).catch(() => []);
+}
+
 export function startSleepSession(data: {
   familyId: number | string;
   createdBy: string;

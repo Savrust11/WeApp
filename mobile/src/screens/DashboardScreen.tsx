@@ -59,6 +59,7 @@ import {
   Heart,
   Bath,
   Droplets,
+  Moon,
   Star,
   Stethoscope,
   Pill,
@@ -149,7 +150,16 @@ const TYPE_LABELS: Record<string, string> = {
   milestone: 'マイルストーン',
   routine_complete: 'ルーティン',
   chore: '名もなき育児',
+  hold: '抱っこ',
+  walk: 'お散歩',
 };
+
+function minutesToHM(mins: number): string {
+  if (mins <= 0) return '0分';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 && m > 0 ? `${h}時間${m}分` : h > 0 ? `${h}時間` : `${m}分`;
+}
 
 const HOURLY_RATE = 1121;
 const MINUTES_PER_TASK = 10;
@@ -249,6 +259,14 @@ export default function DashboardScreen(): React.ReactElement {
     queryFn: () => apiGet<Log[]>(`/api/logs/${familyId}`),
     enabled: !!familyId,
     refetchInterval: 3000,
+  });
+
+  // web: useSleepSessions(familyId) — needed to resolve durationMin for 寝かしつけの傾向
+  const { data: sleepSessions = [] } = useQuery<any[]>({
+    queryKey: ['sleep-sessions', familyId],
+    queryFn: () => apiGet<any[]>(`/api/sleep-sessions/${familyId}`),
+    enabled: !!familyId,
+    refetchInterval: 5000,
   });
 
   // web: filter to the active child (keep logs w/o childId or matching child)
@@ -352,10 +370,10 @@ export default function DashboardScreen(): React.ReactElement {
     });
   }, [logs, selectedRange]);
 
-  const perfOf = (l: any): string => l.performedBy || l.userId;
+  const perfOf = (l: any): string[] => String(l.performedBy || l.userId || '').split('・').filter(Boolean);
 
-  const papaLogs = filteredLogs.filter((l: any) => perfOf(l) === 'papa');
-  const mamaLogs = filteredLogs.filter((l: any) => perfOf(l) === 'mama');
+  const papaLogs = filteredLogs.filter((l: any) => perfOf(l).includes('papa'));
+  const mamaLogs = filteredLogs.filter((l: any) => perfOf(l).includes('mama'));
 
   const papaPoints = papaLogs.reduce((s: number, l: any) => s + (l.points || 0), 0);
   const mamaPoints = mamaLogs.reduce((s: number, l: any) => s + (l.points || 0), 0);
@@ -385,10 +403,10 @@ export default function DashboardScreen(): React.ReactElement {
     return Array.from(types)
       .map((type) => {
         const papaCount = filteredLogs.filter(
-          (l: any) => perfOf(l) === 'papa' && l.type === type,
+          (l: any) => perfOf(l).includes('papa') && l.type === type,
         ).length;
         const mamaCount = filteredLogs.filter(
-          (l: any) => perfOf(l) === 'mama' && l.type === type,
+          (l: any) => perfOf(l).includes('mama') && l.type === type,
         ).length;
         return {
           name: TYPE_LABELS[type as string] || (type as string),
@@ -404,6 +422,59 @@ export default function DashboardScreen(): React.ReactElement {
     () => Math.max(1, ...typeBreakdown.map((d) => d.papa + d.mama)),
     [typeBreakdown],
   );
+
+  // ── 寝かしつけの傾向 (web: sleepTrends, originwebapp移植 2026-09-10) ──
+  const sleepTrends = useMemo(() => {
+    const sleepLogs = filteredLogs.filter((l: any) => l.type === 'sleep');
+    const sessionById = new Map<number, any>(
+      (sleepSessions as any[]).map((s: any) => [s.id, s]),
+    );
+    const findDurationMin = (log: any): number | null => {
+      if (log.sleepSessionId != null) {
+        const linked = sessionById.get(log.sleepSessionId);
+        return linked?.durationMin ?? null;
+      }
+      return null;
+    };
+
+    type Agg = { name: string; count: number; settleSum: number; settleN: number; durSum: number; durN: number };
+    const methodMap = new Map<string, Agg>();
+    const locationMap = new Map<string, Agg>();
+    const add = (map: Map<string, Agg>, name: string, log: any, durationMin: number | null) => {
+      const agg = map.get(name) ?? { name, count: 0, settleSum: 0, settleN: 0, durSum: 0, durN: 0 };
+      agg.count += 1;
+      if (log.settlingMinutes != null && log.settlingMinutes > 0) {
+        agg.settleSum += log.settlingMinutes;
+        agg.settleN += 1;
+      }
+      if (durationMin != null && durationMin > 0) {
+        agg.durSum += durationMin;
+        agg.durN += 1;
+      }
+      map.set(name, agg);
+    };
+
+    for (const log of sleepLogs) {
+      const durationMin = findDurationMin(log);
+      const methods = log.settlingMethod ? String(log.settlingMethod).split('・').filter(Boolean) : [];
+      for (const m of methods) add(methodMap, m, log, durationMin);
+      if (log.sleepLocation) add(locationMap, String(log.sleepLocation), log, durationMin);
+    }
+
+    const finalize = (map: Map<string, Agg>) =>
+      Array.from(map.values())
+        .map((a) => ({
+          name: a.name,
+          count: a.count,
+          avgSettleMin: a.settleN > 0 ? Math.round(a.settleSum / a.settleN) : null,
+          avgSleepMin: a.durN > 0 ? Math.round(a.durSum / a.durN) : null,
+        }))
+        .sort((x, y) => y.count - x.count);
+
+    return { methods: finalize(methodMap), locations: finalize(locationMap) };
+  }, [filteredLogs, sleepSessions]);
+
+  const hasSleepTrendData = sleepTrends.methods.length > 0 || sleepTrends.locations.length > 0;
 
   // ── 時給換算 (web: totalValue/totalTasks) ─────
   const totalTasks = filteredLogs.length;
@@ -637,6 +708,58 @@ export default function DashboardScreen(): React.ReactElement {
           </View>
         </Card>
       )}
+
+      {/* ── Section: 寝かしつけの傾向 (originwebapp移植 2026-09-10) ─────────────────── */}
+      <Card style={{ borderRadius: radius.lg, padding: 20, borderColor: '#E0E7FF', borderWidth: 1 }}>
+        <View style={styles.cardHeading}>
+          <Moon size={16} color="#6366F1" />
+          <Text style={styles.cardHeadingText}>寝かしつけの傾向</Text>
+        </View>
+        <Text style={{ fontSize: 10, color: '#9CA3AF', marginBottom: 12 }}>
+          方法・場所ごとの回数と、平均の寝つき時間・睡眠時間
+        </Text>
+        {!hasSleepTrendData ? (
+          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+            <Text style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', lineHeight: 18 }}>
+              まだ寝かしつけのデータがありません。{'\n'}
+              ねんね記録で「寝かしつけ方法・場所」を入力すると、ここに傾向が表示されます。
+            </Text>
+          </View>
+        ) : (
+          <View style={{ gap: 16 }}>
+            {sleepTrends.methods.length > 0 && (
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#9CA3AF', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>方法別</Text>
+                <View style={{ gap: 6 }}>
+                  {sleepTrends.methods.map((m) => (
+                    <View key={m.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#EEF2FF' }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151', flex: 1 }} numberOfLines={1}>{m.name}</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '900', color: '#6366F1', backgroundColor: '#E0E7FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>{m.count}回</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>{m.avgSettleMin != null ? `寝つき 平均${m.avgSettleMin}分` : '寝つき —'}</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>{m.avgSleepMin != null ? `睡眠 平均${minutesToHM(m.avgSleepMin)}` : '睡眠 —'}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+            {sleepTrends.locations.length > 0 && (
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#9CA3AF', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>場所別</Text>
+                <View style={{ gap: 6 }}>
+                  {sleepTrends.locations.map((m) => (
+                    <View key={m.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#F0FDF4' }}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#374151', flex: 1 }} numberOfLines={1}>{m.name}</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '900', color: '#16A34A', backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>{m.count}回</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>{m.avgSettleMin != null ? `寝つき 平均${m.avgSettleMin}分` : '寝つき —'}</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#6B7280' }}>{m.avgSleepMin != null ? `睡眠 平均${minutesToHM(m.avgSleepMin)}` : '睡眠 —'}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+      </Card>
 
       {/* ── Section: 時給換算 ─────────────────── */}
       <Card style={styles.wageCard}>

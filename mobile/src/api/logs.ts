@@ -25,6 +25,7 @@ export interface Log {
   settlingMinutes?: number | null;
   sleepLocation?: string | null;
   sleepNote?: string | null;
+  sleepSessionId?: number | null;
 }
 
 export async function getLogs(familyId: number | string): Promise<Log[]> {
