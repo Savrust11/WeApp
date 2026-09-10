@@ -38,6 +38,7 @@ import {
   Handshake,
   ExternalLink,
   Sparkles,
+  Syringe,
   Trophy,
   Sun,
   Clock,
@@ -193,7 +194,18 @@ function WhatsNew() {
         sub="We育がもっと使いやすくなりました。新機能をご紹介します。"
       />
 
-      <Text style={styles.eyebrowLabel}>2026年4月21日のアップデート</Text>
+      <Text style={styles.eyebrowLabel}>2026年9月9日のアップデート</Text>
+
+      <UpdateCard
+        Icon={Syringe}
+        iconColor="#0D9488"
+        iconBg="#CCFBF1"
+        title="予防接種リマインド"
+        desc="お子さまの生年月日と接種記録をもとに、次の予防接種時期をホーム画面でお知らせします。通知を始めるタイミングは3日前・7日前・14日前・30日前から選べます。"
+        hint="設定 → 予防接種リマインド"
+      />
+
+      <Text style={[styles.eyebrowLabel, { marginTop: 24 }]}>2026年4月21日のアップデート</Text>
 
       <UpdateCard
         Icon={Clock}
