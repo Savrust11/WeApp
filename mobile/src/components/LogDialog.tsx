@@ -124,6 +124,10 @@ export interface LogSaveData {
   createdAt?: string;
   /** Joined performer roles for web parity ("mama・papa"). */
   performedBy?: string;
+  /** ねんね: 寝かしつけ方法・場所・かかった時間（任意、originwebapp移植 2026-09-10）。 */
+  settlingMethod?: string;
+  settlingMinutes?: number;
+  sleepLocation?: string;
 }
 
 interface Props {
@@ -135,9 +139,15 @@ interface Props {
   onClose: () => void;
   onSave: (data: LogSaveData) => void;
   /** Called when user taps "起きた" to end the active sleep session */
-  onEndSleepSession?: (sessionId: number) => void;
+  onEndSleepSession?: (sessionId: number, details?: SettlingDetails) => void;
   /** Called when user manually enters a past sleep entry */
-  onManualSleep?: (data: { durationMin: number; startedAt: string }) => void;
+  onManualSleep?: (data: { durationMin: number; startedAt: string } & SettlingDetails) => void;
+}
+
+interface SettlingDetails {
+  settlingMethod?: string;
+  settlingMinutes?: number;
+  sleepLocation?: string;
 }
 
 // ─── Internal constants ───────────────────────────────────────────────────────
@@ -297,6 +307,96 @@ const TEXT_TYPES = new Set([
   'appointment', 'discipline', 'interest', 'schedule', 'school_prep', 'snack',
 ]);
 
+const SETTLING_METHOD_OPTIONS = ['抱っこ', '抱っこひも', '添い乳', '添い寝', 'なし'];
+const SETTLING_LOCATION_OPTIONS = ['布団', '抱っこ寝', '抱っこひも寝', 'ベビーカー', 'チャイルドシート'];
+const SETTLING_MINUTES_OPTIONS = [5, 10, 15, 30, 45, 60];
+
+/** 寝かしつけ方法・場所・かかった時間の任意選択UI（originwebapp移植 2026-09-10）。
+ *  ねんね開始・手入力・進行中セッションの3画面すべてで共有する。 */
+function SettlingSelector({
+  settlingMethod, setSettlingMethod,
+  settlingMinutes, setSettlingMinutes,
+  sleepLocation, setSleepLocation,
+}: {
+  settlingMethod: string[];
+  setSettlingMethod: (fn: (prev: string[]) => string[]) => void;
+  settlingMinutes: number;
+  setSettlingMinutes: (v: number) => void;
+  sleepLocation: string;
+  setSleepLocation: (v: string) => void;
+}) {
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={{ gap: 6 }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: INDIGO_400 }}>寝かしつけ方法（任意）</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {SETTLING_METHOD_OPTIONS.map((m) => {
+            const on = settlingMethod.includes(m);
+            return (
+              <TouchableOpacity
+                key={m}
+                onPress={() => setSettlingMethod((prev) => {
+                  if (m === 'なし') return prev.includes('なし') ? [] : ['なし'];
+                  return prev.includes(m) ? prev.filter((x) => x !== m) : [...prev.filter((x) => x !== 'なし'), m];
+                })}
+                style={{
+                  paddingHorizontal: 12, height: 32, borderRadius: 12, justifyContent: 'center',
+                  borderWidth: 2, borderColor: on ? INDIGO_500 : INDIGO_100,
+                  backgroundColor: on ? INDIGO_500 : '#fff',
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: on ? '#fff' : INDIGO_500 }}>{m}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+      <View style={{ gap: 6 }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: SKY_500 }}>ねんね場所（任意）</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {SETTLING_LOCATION_OPTIONS.map((loc) => {
+            const on = sleepLocation === loc;
+            return (
+              <TouchableOpacity
+                key={loc}
+                onPress={() => setSleepLocation(on ? '' : loc)}
+                style={{
+                  paddingHorizontal: 12, height: 32, borderRadius: 12, justifyContent: 'center',
+                  borderWidth: 2, borderColor: on ? SKY_500 : '#E0F2FE',
+                  backgroundColor: on ? SKY_500 : '#fff',
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: on ? '#fff' : SKY_500 }}>{loc}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+      <View style={{ gap: 6 }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: PURPLE_500 }}>寝かしつけにかかった時間（任意）</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {SETTLING_MINUTES_OPTIONS.map((min) => {
+            const on = settlingMinutes === min;
+            return (
+              <TouchableOpacity
+                key={min}
+                onPress={() => setSettlingMinutes(on ? 0 : min)}
+                style={{
+                  paddingHorizontal: 12, height: 32, borderRadius: 12, justifyContent: 'center',
+                  borderWidth: 2, borderColor: on ? PURPLE_500 : PURPLE_100,
+                  backgroundColor: on ? PURPLE_500 : '#fff',
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: on ? '#fff' : PURPLE_500 }}>{min}分</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function LogDialog({
@@ -442,6 +542,11 @@ export default function LogDialog({
   const [showManualDatePicker, setShowManualDatePicker] = useState(false);
   const [manualSleepError, setManualSleepError] = useState('');
   const [sleepElapsedMin, setSleepElapsedMin] = useState(0);
+  // 寝かしつけ方法・場所・かかった時間（任意、originwebapp移植 2026-09-10）
+  const [settlingMethod, setSettlingMethod] = useState<string[]>([]);
+  const [settlingMinutes, setSettlingMinutes] = useState(0);
+  const [sleepLocation, setSleepLocation] = useState('');
+  const resetSettlingDetails = () => { setSettlingMethod([]); setSettlingMinutes(0); setSleepLocation(''); };
   const sleepElapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearSleepElapsed = () => {
@@ -645,8 +750,14 @@ export default function LogDialog({
     const mkDate = (hhmm: string) => new Date(`${manualDate}T${/^\d{1,2}:\d{2}$/.test(hhmm) ? hhmm.padStart(5, '0') : '00:00'}:00`);
     const start  = manualStart ? mkDate(manualStart) : null;
     if (!start || isNaN(start.getTime())) { setManualSleepError('入眠時刻を入力してください'); return; }
+    const settlingDetails = {
+      ...(settlingMethod.length > 0 ? { settlingMethod: settlingMethod.join('・') } : {}),
+      ...(settlingMinutes > 0 ? { settlingMinutes } : {}),
+      ...(sleepLocation ? { sleepLocation } : {}),
+    };
     if (manualNoEnd) {
-      onManualSleep?.({ durationMin: 0, startedAt: start.toISOString() });
+      onManualSleep?.({ durationMin: 0, startedAt: start.toISOString(), ...settlingDetails });
+      resetSettlingDetails();
       onClose();
       return;
     }
@@ -654,7 +765,8 @@ export default function LogDialog({
     if (!end || isNaN(end.getTime())) { setManualSleepError('起床時刻を入力してください（「入力しない」を使うと省略できます）'); return; }
     if (end <= start) { setManualSleepError('起床時刻は入眠時刻より後にしてください'); return; }
     const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
-    onManualSleep?.({ durationMin, startedAt: start.toISOString() });
+    onManualSleep?.({ durationMin, startedAt: start.toISOString(), ...settlingDetails });
+    resetSettlingDetails();
     onClose();
   };
 
@@ -662,15 +774,21 @@ export default function LogDialog({
     const today  = new Date().toISOString().split('T')[0];
     const mkDate = (hhmm: string) => new Date(`${today}T${/^\d{1,2}:\d{2}$/.test(hhmm) ? hhmm.padStart(5, '0') : '00:00'}:00`);
     const start  = sleepQuickStart ? mkDate(sleepQuickStart) : new Date();
+    const settlingDetails = {
+      ...(settlingMethod.length > 0 ? { settlingMethod: settlingMethod.join('・') } : {}),
+      ...(settlingMinutes > 0 ? { settlingMinutes } : {}),
+      ...(sleepLocation ? { sleepLocation } : {}),
+    };
     if (!sleepQuickNoEnd && sleepQuickEnd) {
       const end = mkDate(sleepQuickEnd);
       if (end <= start) return;
       const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
-      onManualSleep?.({ durationMin, startedAt: start.toISOString() });
+      onManualSleep?.({ durationMin, startedAt: start.toISOString(), ...settlingDetails });
     } else {
       // ねんね開始として記録 — let HomeScreen start the session
-      onSave({ type: 'sleep', assignees: [...assignees] as Array<'self' | 'partner' | 'other'> });
+      onSave({ type: 'sleep', assignees: [...assignees] as Array<'self' | 'partner' | 'other'>, ...settlingDetails });
     }
+    resetSettlingDetails();
     onClose();
   };
 
@@ -943,9 +1061,22 @@ export default function LogDialog({
               </View>
             </View>
           </View>
+          <SettlingSelector
+            settlingMethod={settlingMethod} setSettlingMethod={setSettlingMethod}
+            settlingMinutes={settlingMinutes} setSettlingMinutes={setSettlingMinutes}
+            sleepLocation={sleepLocation} setSleepLocation={setSleepLocation}
+          />
           <TouchableOpacity
             style={s.wakeBtn}
-            onPress={() => { onEndSleepSession?.(activeSleepSession.id); onClose(); }}
+            onPress={() => {
+              onEndSleepSession?.(activeSleepSession.id, {
+                ...(settlingMethod.length > 0 ? { settlingMethod: settlingMethod.join('・') } : {}),
+                ...(settlingMinutes > 0 ? { settlingMinutes } : {}),
+                ...(sleepLocation ? { sleepLocation } : {}),
+              });
+              resetSettlingDetails();
+              onClose();
+            }}
           >
             <Sun size={20} color="#fff" strokeWidth={2.5} />
             <Text style={s.wakeBtnText}>起きた（記録して終了）</Text>
@@ -1012,6 +1143,11 @@ export default function LogDialog({
             </View>
           )}
           {!!manualSleepError && <Text style={s.errorText}>{manualSleepError}</Text>}
+          <SettlingSelector
+            settlingMethod={settlingMethod} setSettlingMethod={setSettlingMethod}
+            settlingMinutes={settlingMinutes} setSettlingMinutes={setSettlingMinutes}
+            sleepLocation={sleepLocation} setSleepLocation={setSleepLocation}
+          />
           <View style={s.row}>
             <TouchableOpacity
               style={[s.outlineBtn, { flex: 0, paddingHorizontal: 18 }]}
@@ -1028,9 +1164,23 @@ export default function LogDialog({
     } else if (!sleepShowPicker) {
       body = (
         <View style={s.section}>
+          <SettlingSelector
+            settlingMethod={settlingMethod} setSettlingMethod={setSettlingMethod}
+            settlingMinutes={settlingMinutes} setSettlingMinutes={setSettlingMinutes}
+            sleepLocation={sleepLocation} setSleepLocation={setSleepLocation}
+          />
           <TouchableOpacity
-            style={[s.primarySolid, { backgroundColor: INDIGO_500, paddingVertical: 18 }]}
-            onPress={() => { onSave({ type: 'sleep', assignees: [...assignees] as Array<'self' | 'partner' | 'other'> }); onClose(); }}
+            style={[s.primarySolid, { backgroundColor: INDIGO_500, paddingVertical: 18, marginTop: 12 }]}
+            onPress={() => {
+              onSave({
+                type: 'sleep', assignees: [...assignees] as Array<'self' | 'partner' | 'other'>,
+                ...(settlingMethod.length > 0 ? { settlingMethod: settlingMethod.join('・') } : {}),
+                ...(settlingMinutes > 0 ? { settlingMinutes } : {}),
+                ...(sleepLocation ? { sleepLocation } : {}),
+              });
+              resetSettlingDetails();
+              onClose();
+            }}
           >
             <Moon size={22} color="#fff" strokeWidth={2.5} />
             <Text style={[s.primarySolidText, { fontSize: 18 }]}>今すぐ記録する</Text>
@@ -1087,6 +1237,11 @@ export default function LogDialog({
               <Text style={[s.infoBoxText, { fontWeight: '900', color: INDIGO_700 }]}>{fmtElapsed(dur)}のねんね</Text>
             </View>
           )}
+          <SettlingSelector
+            settlingMethod={settlingMethod} setSettlingMethod={setSettlingMethod}
+            settlingMinutes={settlingMinutes} setSettlingMinutes={setSettlingMinutes}
+            sleepLocation={sleepLocation} setSleepLocation={setSleepLocation}
+          />
           <View style={s.row}>
             <TouchableOpacity
               style={[s.outlineBtn, { flex: 0, paddingHorizontal: 18 }]}

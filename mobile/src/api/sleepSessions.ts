@@ -8,6 +8,15 @@ export interface SleepSession {
   startedAt: string;
   endedAt?: string;
   durationMin?: number;
+  settlingMethod?: string | null;
+  settlingMinutes?: number | null;
+  sleepLocation?: string | null;
+}
+
+export interface SettlingDetails {
+  settlingMethod?: string;
+  settlingMinutes?: number;
+  sleepLocation?: string;
 }
 
 export function getActiveSleepSession(familyId: number | string): Promise<SleepSession | null> {
@@ -18,12 +27,12 @@ export function startSleepSession(data: {
   familyId: number | string;
   createdBy: string;
   childId?: number;
-}): Promise<SleepSession> {
+} & SettlingDetails): Promise<SleepSession> {
   return apiPost('/api/sleep-sessions/start', data);
 }
 
-export function endSleepSession(id: number): Promise<SleepSession> {
-  return apiPost(`/api/sleep-sessions/${id}/end`, {});
+export function endSleepSession(id: number, details?: SettlingDetails): Promise<SleepSession> {
+  return apiPost(`/api/sleep-sessions/${id}/end`, details ?? {});
 }
 
 export function manualSleepEntry(data: {
@@ -32,6 +41,6 @@ export function manualSleepEntry(data: {
   childId?: number;
   durationMin: number;
   startedAt: string;
-}): Promise<SleepSession> {
+} & SettlingDetails): Promise<SleepSession> {
   return apiPost('/api/sleep-sessions/manual', data);
 }

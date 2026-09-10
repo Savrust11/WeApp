@@ -1007,7 +1007,12 @@ export default function HomeScreen() {
     // entries (client-reported bug 2026-09-09).
     if (data.type === 'sleep') {
       if (!activeSleepSession) {
-        startSleepSession({ familyId, createdBy: userId, childId: activeChildId })
+        startSleepSession({
+          familyId, createdBy: userId, childId: activeChildId,
+          settlingMethod: data.settlingMethod,
+          settlingMinutes: data.settlingMinutes,
+          sleepLocation: data.sleepLocation,
+        })
           .then(setActiveSleepSession)
           .catch(() => {});
       }
@@ -1020,9 +1025,12 @@ export default function HomeScreen() {
     });
   };
 
-  const handleEndSleepSession = async (sessionId: number) => {
+  const handleEndSleepSession = async (
+    sessionId: number,
+    details?: { settlingMethod?: string; settlingMinutes?: number; sleepLocation?: string },
+  ) => {
     try {
-      await endSleepSession(sessionId);
+      await endSleepSession(sessionId, details);
       setActiveSleepSession(null);
       // The server already creates the completed "sleep" log (with the
       // correct duration) as part of ending the session — just refresh.
@@ -1032,7 +1040,7 @@ export default function HomeScreen() {
     }
   };
 
-  const handleManualSleep = async (data: { durationMin: number; startedAt: string }) => {
+  const handleManualSleep = async (data: { durationMin: number; startedAt: string; settlingMethod?: string; settlingMinutes?: number; sleepLocation?: string }) => {
     if (!activeChildId) return;
     try {
       await manualSleepEntry({ familyId, createdBy: userId, childId: activeChildId, ...data });
