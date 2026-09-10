@@ -18,6 +18,7 @@ import { getBaseUrl } from './src/api/client';
 import { scheduleNextFeedingAlarm } from './src/utils/alarmManager';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { ToastProvider } from './src/components/Toast';
+import FamilyIdMigrationBanner from './src/components/FamilyIdMigrationBanner';
 
 // Configure how push notifications are displayed when the app is in the foreground.
 Notifications.setNotificationHandler({
@@ -208,7 +209,12 @@ function AppContent() {
     };
   }, []);
 
-  return <AppNavigator />;
+  return (
+    <>
+      <AppNavigator />
+      <FamilyIdMigrationBanner />
+    </>
+  );
 }
 
 export default function App() {
