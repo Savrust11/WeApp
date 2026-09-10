@@ -1453,12 +1453,18 @@ export default function TimelineScreen() {
               {dayLabel}{isToday ? ' - 今日' : ''}
             </Text>
             {daySleepTotalMinutes > 0 && (
-              <Text style={t.dateSleepMeta}>
-                <Moon size={11} color="#A5B4FC" strokeWidth={2} />{'  '}
-                睡眠合計 {daySleepTotalMinutes >= 60
-                  ? `${Math.floor(daySleepTotalMinutes / 60)}時間${daySleepTotalMinutes % 60 > 0 ? `${daySleepTotalMinutes % 60}分` : ''}`
-                  : `${daySleepTotalMinutes}分`}
-              </Text>
+              // Icon must be a SIBLING of the text, not nested inside <Text>:
+              // an SVG inside <Text> doesn't lay out inline on Android and
+              // rendered on top of the label (client-reported "文字と睡眠が
+              // かぶって見にくい" 2026-09-09).
+              <View style={t.dateSleepMetaRow}>
+                <Moon size={11} color="#A5B4FC" strokeWidth={2} />
+                <Text style={t.dateSleepMeta}>
+                  睡眠合計 {daySleepTotalMinutes >= 60
+                    ? `${Math.floor(daySleepTotalMinutes / 60)}時間${daySleepTotalMinutes % 60 > 0 ? `${daySleepTotalMinutes % 60}分` : ''}`
+                    : `${daySleepTotalMinutes}分`}
+                </Text>
+              </View>
             )}
           </View>
         </View>
@@ -1903,6 +1909,7 @@ const t = StyleSheet.create({
   dateChipDotSel: { backgroundColor: '#FFFFFF' },
   dateMetaWrap: { alignItems: 'center', marginTop: 6, gap: 2 },
   dateMeta: { fontSize: 12, fontFamily: fonts.bodyBold, fontWeight: '700', color: palette.mutedForeground },
+  dateSleepMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   dateSleepMeta: { fontSize: 11, fontFamily: fonts.bodyBold, fontWeight: '700', color: '#A5B4FC' },
 
   // Timeline card — web: rounded-3xl shadow card wrapping the 24h grid
