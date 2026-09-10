@@ -64,6 +64,7 @@ import {
   Share2,
   Copy,
   Check,
+  ShieldCheck,
   UserPlus,
   Moon,
   Sun,
@@ -107,7 +108,7 @@ import { useAuthStore } from '../store/authStore';
 import { useChildStore } from '../store/childStore';
 import { createChild } from '../api/children';
 import { joinFamily, deleteAccount as deleteAccountApi } from '../api/auth';
-import { apiRequest } from '../api/client';
+import { apiRequest, apiPost } from '../api/client';
 import type { RootStackParamList } from '../navigation';
 import { useTheme, ThemeMode } from '../contexts/ThemeContext';
 import { palette, fonts, radius, shadows } from '../theme/tokens';
@@ -290,6 +291,7 @@ export default function SettingsScreen() {
   // ── Pairing join state (web: PairingSection) ─────────────────────────────────
   const [copied, setCopied]     = useState(false);
   const [joinMode, setJoinMode] = useState(false);
+  const [rotating, setRotating] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [joining, setJoining]   = useState(false);
 
@@ -537,6 +539,25 @@ export default function SettingsScreen() {
         );
       },
     );
+  };
+
+  // 家族コードを安全に再発行（originwebapp移植 2026-09-10）— バナーだけでなく
+  // 設定画面からもいつでも実行できるように、Tipsページの説明と一致させている。
+  const LEGACY_FAMILY_ID_RE = /^family-[0-9a-z]{1,10}$/;
+  const handleRotateFamilyId = async () => {
+    const familyId = user?.familyId;
+    if (!familyId) return;
+    setRotating(true);
+    try {
+      const data = await apiPost<{ newFamilyId: string }>('/api/family/rotate-id', { familyId });
+      await AsyncStorage.setItem('familyId', data.newFamilyId);
+      setUser({ ...user, familyId: data.newFamilyId });
+      notify('家族コードを更新しました', 'パートナーの端末は3日以内にアプリを開くと自動で切り替わります。');
+    } catch {
+      notify('更新に失敗しました', 'しばらくしてからもう一度お試しください');
+    } finally {
+      setRotating(false);
+    }
   };
 
   // ── Copy / share pairing code (web: PairingSection.handleCopy) ───────────────
@@ -990,6 +1011,20 @@ export default function SettingsScreen() {
               </Button>
             </View>
             <Muted style={styles.fieldHint}>このコードをパートナーに共有してください</Muted>
+
+            {user?.familyId && LEGACY_FAMILY_ID_RE.test(user.familyId) && (
+              <Button
+                variant="outline"
+                onPress={handleRotateFamilyId}
+                disabled={rotating}
+                style={[styles.fullOutlineBtn, { borderColor: '#FDE68A' }]}
+              >
+                <ShieldCheck size={16} color="#B45309" />
+                <Text style={[styles.outlineBtnText, { color: '#B45309' }]}>
+                  {rotating ? '更新中…' : '家族コードを安全な形式に更新する'}
+                </Text>
+              </Button>
+            )}
 
             {!joinMode ? (
               <Button
