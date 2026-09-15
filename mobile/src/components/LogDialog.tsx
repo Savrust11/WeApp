@@ -762,9 +762,13 @@ export default function LogDialog({
       onClose();
       return;
     }
-    const end = manualEnd ? mkDate(manualEnd) : null;
+    let end = manualEnd ? mkDate(manualEnd) : null;
     if (!end || isNaN(end.getTime())) { setManualSleepError('起床時刻を入力してください（「入力しない」を使うと省略できます）'); return; }
-    if (end <= start) { setManualSleepError('起床時刻は入眠時刻より後にしてください'); return; }
+    // 起床時刻が入眠時刻より前 = 日をまたぐ夜間睡眠（例 22:00→6:00）として
+    // 翌日の時刻に解釈する（client question 2026-09-15 — 従来はエラーで
+    // 夜通しのねんねを後から入力できなかった）。同時刻ちょうどはエラー。
+    if (end.getTime() === start.getTime()) { setManualSleepError('起床時刻は入眠時刻より後にしてください'); return; }
+    if (end < start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
     const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
     onManualSleep?.({ durationMin, startedAt: start.toISOString(), ...settlingDetails });
     resetSettlingDetails();
@@ -781,8 +785,10 @@ export default function LogDialog({
       ...(sleepLocation ? { sleepLocation } : {}),
     };
     if (!sleepQuickNoEnd && sleepQuickEnd) {
-      const end = mkDate(sleepQuickEnd);
-      if (end <= start) { setManualSleepError('起床時刻は入眠時刻より後にしてください'); return; }
+      let end = mkDate(sleepQuickEnd);
+      if (end.getTime() === start.getTime()) { setManualSleepError('起床時刻は入眠時刻より後にしてください'); return; }
+      // 起床時刻が入眠時刻より前なら翌日として解釈（夜間睡眠 22:00→6:00 など）
+      if (end < start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
       const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
       onManualSleep?.({ durationMin, startedAt: start.toISOString(), ...settlingDetails });
     } else {
@@ -1106,7 +1112,10 @@ export default function LogDialog({
       );
     } else if (sleepStep === 'manual') {
       const sd = manualStart && /^\d{1,2}:\d{2}$/.test(manualStart) ? new Date(`${manualDate}T${manualStart.padStart(5, '0')}:00`) : null;
-      const ed = manualEnd && /^\d{1,2}:\d{2}$/.test(manualEnd) ? new Date(`${manualDate}T${manualEnd.padStart(5, '0')}:00`) : null;
+      let ed = manualEnd && /^\d{1,2}:\d{2}$/.test(manualEnd) ? new Date(`${manualDate}T${manualEnd.padStart(5, '0')}:00`) : null;
+      // 起床時刻 < 入眠時刻 は翌日として解釈（22:00→6:00 の夜間睡眠）
+      const manualOvernight = !!(sd && ed && ed < sd);
+      if (manualOvernight && ed) ed = new Date(ed.getTime() + 24 * 60 * 60 * 1000);
       const dur = sd && ed ? Math.round((ed.getTime() - sd.getTime()) / 60000) : 0;
       const manualDateObj = new Date(`${manualDate}T00:00:00`);
       body = (
@@ -1156,7 +1165,9 @@ export default function LogDialog({
           )}
           {!manualNoEnd && dur > 0 && (
             <View style={s.infoBox}>
-              <Text style={[s.infoBoxText, { fontWeight: '900', color: INDIGO_700 }]}>{fmtElapsed(dur)}のねんね</Text>
+              <Text style={[s.infoBoxText, { fontWeight: '900', color: INDIGO_700 }]}>
+                {fmtElapsed(dur)}のねんね{manualOvernight ? '（翌朝までの夜間睡眠として記録します）' : ''}
+              </Text>
             </View>
           )}
           {!!manualSleepError && <Text style={s.errorText}>{manualSleepError}</Text>}
@@ -1214,7 +1225,10 @@ export default function LogDialog({
     } else {
       const today = new Date().toISOString().split('T')[0];
       const sd = sleepQuickStart && /^\d{1,2}:\d{2}$/.test(sleepQuickStart) ? new Date(`${today}T${sleepQuickStart.padStart(5, '0')}:00`) : null;
-      const ed = sleepQuickEnd && /^\d{1,2}:\d{2}$/.test(sleepQuickEnd) ? new Date(`${today}T${sleepQuickEnd.padStart(5, '0')}:00`) : null;
+      let ed = sleepQuickEnd && /^\d{1,2}:\d{2}$/.test(sleepQuickEnd) ? new Date(`${today}T${sleepQuickEnd.padStart(5, '0')}:00`) : null;
+      // 起床時刻 < 入眠時刻 は翌日として解釈（22:00→6:00 の夜間睡眠）
+      const quickOvernight = !!(sd && ed && ed < sd);
+      if (quickOvernight && ed) ed = new Date(ed.getTime() + 24 * 60 * 60 * 1000);
       const dur = sd && ed ? Math.round((ed.getTime() - sd.getTime()) / 60000) : 0;
       body = (
         <View style={s.section}>
@@ -1254,7 +1268,9 @@ export default function LogDialog({
           )}
           {!sleepQuickNoEnd && dur > 0 && (
             <View style={s.infoBox}>
-              <Text style={[s.infoBoxText, { fontWeight: '900', color: INDIGO_700 }]}>{fmtElapsed(dur)}のねんね</Text>
+              <Text style={[s.infoBoxText, { fontWeight: '900', color: INDIGO_700 }]}>
+                {fmtElapsed(dur)}のねんね{quickOvernight ? '（翌朝までの夜間睡眠として記録します）' : ''}
+              </Text>
             </View>
           )}
           {!!manualSleepError && <Text style={s.errorText}>{manualSleepError}</Text>}
