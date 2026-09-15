@@ -725,15 +725,27 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
 
 function SleepBlock({ log, onPress }: { log: Log; onPress: () => void }) {
   // Sleep "session" derived from the sleep log: start = createdAt, duration
-  // taken from memo (first '分' token) when present, else a minimal band.
+  // from memo (legacy client-created logs) or the server completion log's
+  // message ("15分のねんねを記録しました！…") — since the double-log fix
+  // (2026-09-10) the server log is the only one, so memo alone missed the
+  // duration and every band collapsed to the 30-min default.
   const start = new Date(log.createdAt);
   const parts = (log.memo ?? '').split('\n')[0].split('・').filter(Boolean);
   const durToken = parts.find(p => SLEEP_DURATION_RE.test(p));
-  const durMin = durToken ? parseInt(durToken) : 0;
+  const msgMatch = /(\d+)分のねんね/.exec((log as any).message ?? '');
+  const durMin = durToken ? parseInt(durToken) : msgMatch ? parseInt(msgMatch[1]) : 0;
   const startMin = minutesFromMidnight(start);
   const top = minutesToTopPx(startMin);
   const height = Math.max(22, minutesToTopPx(durMin || 30));
-  const methodLoc = parts.filter(p => !SLEEP_DURATION_RE.test(p));
+  // Settling badges: prefer the dedicated columns (how the server stores
+  // them since 2026-09-10); memo parsing kept for legacy client-made logs.
+  const columnBadges = [
+    ...String(log.settlingMethod ?? '').split('・').filter(Boolean),
+    ...(log.sleepLocation ? [log.sleepLocation] : []),
+  ];
+  const methodLoc = columnBadges.length > 0
+    ? columnBadges
+    : parts.filter(p => !SLEEP_DURATION_RE.test(p));
 
   return (
     <TouchableOpacity
