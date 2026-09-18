@@ -129,6 +129,8 @@ export interface LogSaveData {
   settlingMethod?: string;
   settlingMinutes?: number;
   sleepLocation?: string;
+  /** ねんね開始（起床未定）: 指定した入眠時刻。無指定なら「今」扱い。 */
+  startedAt?: string;
 }
 
 interface Props {
@@ -792,8 +794,15 @@ export default function LogDialog({
       const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
       onManualSleep?.({ durationMin, startedAt: start.toISOString(), ...settlingDetails });
     } else {
-      // ねんね開始として記録 — let HomeScreen start the session
-      onSave({ type: 'sleep', assignees: [...assignees] as Array<'self' | 'partner' | 'other'>, ...settlingDetails });
+      // ねんね開始として記録 — let HomeScreen start the session.
+      // 指定した入眠時刻を必ず渡す：渡し忘れによりセッションが「今」から
+      // 始まり、バーが現在時刻の位置に表示されていた（client-reported bug
+      // 2026-09-18: 13:00開始で入力→現在時刻にバーが出る）。
+      onSave({
+        type: 'sleep', assignees: [...assignees] as Array<'self' | 'partner' | 'other'>,
+        ...settlingDetails,
+        startedAt: start.toISOString(),
+      });
     }
     resetSettlingDetails();
     onClose();

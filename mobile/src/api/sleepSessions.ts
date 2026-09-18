@@ -31,6 +31,8 @@ export function startSleepSession(data: {
   familyId: number | string;
   createdBy: string;
   childId?: number;
+  /** 指定入眠時刻（ISO）。未指定ならサーバー側で「今」。 */
+  startedAt?: string;
 } & SettlingDetails): Promise<SleepSession> {
   return apiPost('/api/sleep-sessions/start', data);
 }

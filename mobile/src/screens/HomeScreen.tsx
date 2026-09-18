@@ -1017,6 +1017,8 @@ export default function HomeScreen() {
           settlingMethod: data.settlingMethod,
           settlingMinutes: data.settlingMinutes,
           sleepLocation: data.sleepLocation,
+          // 指定入眠時刻（未指定なら server 側で「今」になる）
+          startedAt: data.startedAt,
         })
           .then(setActiveSleepSession)
           .catch(() => {});
@@ -1048,6 +1050,21 @@ export default function HomeScreen() {
   const handleManualSleep = async (data: { durationMin: number; startedAt: string; settlingMethod?: string; settlingMinutes?: number; sleepLocation?: string }) => {
     if (!activeChildId) return;
     try {
+      if (data.durationMin === 0) {
+        // 手入力の「まだ起きていない」= 指定時刻からのねんね開始。
+        // manualエンドポイントは durationMin >= 1 必須のため、こちらは
+        // セッション開始として扱う（従来は400エラーで保存できなかった）。
+        const session = await startSleepSession({
+          familyId, createdBy: userId, childId: activeChildId,
+          startedAt: data.startedAt,
+          settlingMethod: data.settlingMethod,
+          settlingMinutes: data.settlingMinutes,
+          sleepLocation: data.sleepLocation,
+        });
+        setActiveSleepSession(session);
+        queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+        return;
+      }
       await manualSleepEntry({ familyId, createdBy: userId, childId: activeChildId, ...data });
       setActiveSleepSession(null);
       // The server already creates the completed "sleep" log for manual
