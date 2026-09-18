@@ -131,6 +131,10 @@ export const PHASE_BUTTONS: LogButton[][] = [
   // ── Phase 1: 幼児前期 ────────────────────────────────────────────────────
   [
     { type: 'meal',        label: 'ごはん',    emoji: '🍱', color: '#E8F5E9' },
+    // 1歳を過ぎても離乳食が続くお子様向けに、幼児前期にも離乳食ボタンを
+    // 残す（monitor feedback 2026-09-18 — 乳児期専用だと1歳直後に記録手段が
+    // なくなる。不要な家庭は並び替え/非表示で消せる）。
+    { type: 'food',        label: '離乳食',    emoji: '🥣', color: '#E8F5E9' },
     { type: 'milk',        label: 'ミルク',    emoji: '🍼', color: '#FFF8E1' },
     { type: 'snack',       label: 'おやつ',    emoji: '🍪', color: '#FFF8E1' },
     { type: 'toilet',      label: 'トイレ',    emoji: '🚽', color: '#E0F7FA' },
@@ -1020,8 +1024,19 @@ export default function HomeScreen() {
           // 指定入眠時刻（未指定なら server 側で「今」になる）
           startedAt: data.startedAt,
         })
-          .then(setActiveSleepSession)
-          .catch(() => {});
+          .then((session) => {
+            setActiveSleepSession(session);
+            queryClient.invalidateQueries({ queryKey: ['logs', familyId] });
+          })
+          // Silent .catch(() => {}) here made failures (e.g. 既に睡眠セッション
+          // が進行中) look like "ねんねが記録できない" with no clue why
+          // (monitor feedback 2026-09-18). Surface the server's message and
+          // refresh the active session so the ねんね中 UI appears.
+          .catch(async (err: any) => {
+            await refreshActiveSleep();
+            const m = /"message"\s*:\s*"([^"]+)"/.exec(String(err?.message ?? ''));
+            showAlert(m ? m[1] : 'ねんねの記録に失敗しました。');
+          });
       }
       return;
     }
