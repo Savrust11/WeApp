@@ -784,7 +784,13 @@ export default function HomeScreen() {
     );
     let total = 0;
     for (const l of sleepLogs) {
-      const m = l.memo ? parseInt(String(l.memo).replace(/[^0-9]/g, ''), 10) : NaN;
+      // Duration lives in memo on legacy client-made logs, and in the
+      // server completion log's message ("160分のねんねを記録しました！…")
+      // since the double-log fix — parse both, else the home 睡眠 total
+      // missed all new records (client-reported bug 2026-09-21).
+      const memoMin = l.memo ? parseInt(String(l.memo).replace(/[^0-9]/g, ''), 10) : NaN;
+      const msgMatch = /(\d+)分のねんね/.exec(String((l as any).message ?? ''));
+      const m = !isNaN(memoMin) ? memoMin : msgMatch ? parseInt(msgMatch[1], 10) : NaN;
       if (!isNaN(m)) total += m;
     }
     if (
@@ -834,13 +840,18 @@ export default function HomeScreen() {
       .reduce((s, l) => s + (l.expressedMl ?? 0), 0);
   }, [logs, todayStart]);
 
+  // Count by TYPE (diaper_wet / diaper_poop), with web-era `diaper`+subType
+  // as fallback. Counting by poopColor-presence miscounted a plain うんち
+  // (no color/consistency picked) as おしっこ, so the home summary showed
+  // うんち0 while the timeline correctly showed the record (client-reported
+  // bug 2026-09-21).
   const todayPeeCount = useMemo(
     () =>
       logs.filter(
         (l) =>
-          (l.type === 'diaper' || l.type.startsWith('diaper')) &&
           new Date(l.createdAt) >= todayStart &&
-          l.poopColor == null && l.poopConsistency == null,
+          (l.type === 'diaper_wet' ||
+            (l.type === 'diaper' && ((l as any).subType === 'pee' || (l as any).subType === 'both'))),
       ).length,
     [logs, todayStart],
   );
@@ -849,9 +860,9 @@ export default function HomeScreen() {
     () =>
       logs.filter(
         (l) =>
-          (l.type === 'diaper' || l.type.startsWith('diaper')) &&
           new Date(l.createdAt) >= todayStart &&
-          (l.poopColor != null || l.poopConsistency != null),
+          (l.type === 'diaper_poop' ||
+            (l.type === 'diaper' && ((l as any).subType === 'poop' || (l as any).subType === 'both'))),
       ).length,
     [logs, todayStart],
   );
@@ -986,18 +997,20 @@ export default function HomeScreen() {
     if (!activeChildId) return;
     setActiveLogType(null);
 
+    // Pass EVERYTHING the dialog collected through to the API. This used to
+    // cherry-pick a handful of fields, silently dropping createdAt (時間を
+    // 変更で選んだ時刻 → 全記録が現在時刻で保存される), subType, うんちの
+    // 色・かたさ・量, 離乳食の品目, 抱っこ/お散歩の終了時刻, 授乳間隔除外
+    // フラグなど (client-reported bug 2026-09-21). The server's zod schema
+    // strips unknown keys, so spreading is safe.
+    const { assignees: _assignees, startedAt: _startedAt,
+            settlingMethod: _sm, settlingMinutes: _smin, sleepLocation: _sl,
+            diaperPee: _dp, diaperPoop: _dpo, ...rest } = data as any;
     const base = {
-      type:     data.type,
+      ...rest,
       childId:  activeChildId,
       familyId: String(familyId),
       points:   1,
-      memo:     data.memo,
-      bodyTemperature: data.bodyTemperature,
-      formulaMl:       data.formulaMl,
-      expressedMl:     data.expressedMl,
-      breastLeftMin:   data.breastLeftMin,
-      breastRightMin:  data.breastRightMin,
-      symptoms:        data.symptoms,
     } as any;
 
     if (data.medicineName) {
