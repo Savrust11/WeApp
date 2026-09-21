@@ -723,20 +723,33 @@ function EditLogDialog({ log, onClose, onSaved }: EditLogDialogProps) {
 
 // ─── Sleep / log timeline rendering helpers ──────────────────────────────────
 
-function SleepBlock({ log, onPress }: { log: Log; onPress: () => void }) {
-  // Sleep "session" derived from the sleep log: start = createdAt, duration
-  // from memo (legacy client-created logs) or the server completion log's
-  // message ("15分のねんねを記録しました！…") — since the double-log fix
-  // (2026-09-10) the server log is the only one, so memo alone missed the
-  // duration and every band collapsed to the 30-min default.
-  const start = new Date(log.createdAt);
+/** Duration of a sleep log in minutes: memo token (legacy client-made logs)
+ *  or the server completion log's message ("15分のねんねを記録しました！…"). */
+function sleepLogDurationMin(log: Log): number {
   const parts = (log.memo ?? '').split('\n')[0].split('・').filter(Boolean);
   const durToken = parts.find(p => SLEEP_DURATION_RE.test(p));
-  const msgMatch = /(\d+)分のねんね/.exec((log as any).message ?? '');
-  const durMin = durToken ? parseInt(durToken) : msgMatch ? parseInt(msgMatch[1]) : 0;
-  const startMin = minutesFromMidnight(start);
+  if (durToken) return parseInt(durToken);
+  const msgMatch = /(\d+)分のねんね/.exec(String((log as any).message ?? ''));
+  return msgMatch ? parseInt(msgMatch[1]) : 0;
+}
+
+function SleepBlock({ log, carryOverMin, onPress }: { log: Log; carryOverMin?: number; onPress: () => void }) {
+  // Sleep band derived from the sleep log: start = createdAt, duration from
+  // sleepLogDurationMin(). Cross-midnight sleeps (夜間睡眠 22:05→9:25 など)
+  // render in two segments: the start-day portion (clipped at 24:00) and a
+  // carry-over segment from 00:00 on the next day (carryOverMin) — before
+  // this, the next-day morning portion simply never appeared
+  // (client-reported 2026-09-21: 9/4〜9/5の夜間睡眠がきろくに出ない).
+  const start = new Date(log.createdAt);
+  const parts = (log.memo ?? '').split('\n')[0].split('・').filter(Boolean);
+  const durMin = sleepLogDurationMin(log);
+  const isCarry = carryOverMin != null;
+  const startMin = isCarry ? 0 : minutesFromMidnight(start);
   const top = minutesToTopPx(startMin);
-  const height = Math.max(22, minutesToTopPx(durMin || 30));
+  const displayMin = isCarry
+    ? carryOverMin
+    : Math.min(durMin || 30, 24 * 60 - startMin);
+  const height = Math.max(22, minutesToTopPx(displayMin));
   // Settling badges: prefer the dedicated columns (how the server stores
   // them since 2026-09-10); memo parsing kept for legacy client-made logs.
   const columnBadges = [
@@ -757,7 +770,7 @@ function SleepBlock({ log, onPress }: { log: Log; onPress: () => void }) {
         <View style={tl.sleepHeadRow}>
           <Moon size={14} color="#A78BC9" strokeWidth={2} />
           <Text style={tl.sleepTitle}>
-            ねんね{durMin > 0 ? ` ${formatDuration(durMin)}` : ''}
+            ねんね{isCarry ? '（続き）' : ''}{durMin > 0 ? ` ${formatDuration(durMin)}` : ''}
           </Text>
         </View>
         {height >= 46 && methodLoc.length > 0 && (
@@ -1267,7 +1280,25 @@ export default function TimelineScreen() {
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [logs, selectedDate]);
 
-  const daySleepLogs = useMemo(() => dayLogs.filter(l => l.type === 'sleep'), [dayLogs]);
+  // Sleep entries for the day: same-day logs PLUS the carried-over morning
+  // portion of a previous-day sleep that crossed midnight (夜間睡眠).
+  const daySleepEntries = useMemo(() => {
+    const sel = toYMD(selectedDate);
+    const prev = toYMD(addDays(selectedDate, -1));
+    const entries: Array<{ log: Log; carryOverMin?: number }> = [];
+    for (const l of logs) {
+      if (l.type !== 'sleep') continue;
+      const d = toYMD(new Date(l.createdAt));
+      if (d === sel) {
+        entries.push({ log: l });
+      } else if (d === prev) {
+        const dur = sleepLogDurationMin(l);
+        const over = minutesFromMidnight(new Date(l.createdAt)) + dur - 24 * 60;
+        if (over > 0) entries.push({ log: l, carryOverMin: Math.min(over, 24 * 60) });
+      }
+    }
+    return entries;
+  }, [logs, selectedDate]);
   const dayPointLogs = useMemo(() => dayLogs.filter(l => l.type !== 'sleep'), [dayLogs]);
 
   // Web: column layout — group near-overlapping entries into side-by-side cols
@@ -1292,15 +1323,22 @@ export default function TimelineScreen() {
   }, [dayPointLogs]);
 
   // Day sleep total (minutes) — sum of '分' tokens in sleep memos
+  // Per-day total counts only the minutes that fall WITHIN this day —
+  // an overnight sleep contributes its pre-midnight part to the start day
+  // and its morning part (carryOverMin) to the next day.
   const daySleepTotalMinutes = useMemo(() => {
     let total = 0;
-    for (const l of daySleepLogs) {
-      const parts = (l.memo ?? '').split('\n')[0].split('・');
-      const tok = parts.find(p => SLEEP_DURATION_RE.test(p));
-      if (tok) total += parseInt(tok);
+    for (const e of daySleepEntries) {
+      if (e.carryOverMin != null) {
+        total += e.carryOverMin;
+      } else {
+        const dur = sleepLogDurationMin(e.log);
+        const startMin = minutesFromMidnight(new Date(e.log.createdAt));
+        total += Math.min(dur, 24 * 60 - startMin);
+      }
     }
     return total;
-  }, [daySleepLogs]);
+  }, [daySleepEntries]);
 
   const goToPrevDay = useCallback(() => setSelectedDate(d => addDays(d, -1)), []);
   const goToNextDay = useCallback(() => setSelectedDate(d => {
@@ -1503,8 +1541,13 @@ export default function TimelineScreen() {
                 <View style={[t.gutterRule, { height: TOTAL_HEIGHT }]} />
 
                 {/* Sleep blocks */}
-                {daySleepLogs.map(log => (
-                  <SleepBlock key={`sleep-${log.id}`} log={log} onPress={() => setEditingLog(log)} />
+                {daySleepEntries.map(({ log, carryOverMin }) => (
+                  <SleepBlock
+                    key={`sleep-${log.id}${carryOverMin != null ? '-carry' : ''}`}
+                    log={log}
+                    carryOverMin={carryOverMin}
+                    onPress={() => setEditingLog(log)}
+                  />
                 ))}
 
                 {/* Log entries (positioned by time, column-packed) */}
