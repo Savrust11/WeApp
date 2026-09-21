@@ -254,11 +254,15 @@ export default function DashboardScreen(): React.ReactElement {
     id === 'papa' ? papaLabel : id === 'mama' ? mamaLabel : 'その他';
 
   // ── Logs (web: useLogs(familyId)) ─────────────
+  // Poll gently: the full-history payload is large (several MB for active
+  // families), and 3-second polling of it made the whole app feel slow
+  // (user-reported 2026-09-21). Mutations invalidate this cache anyway, so
+  // the interval only covers the partner's device updates.
   const { data: allLogs = [] } = useQuery<Log[]>({
     queryKey: ['logs', familyId],
     queryFn: () => apiGet<Log[]>(`/api/logs/${familyId}`),
     enabled: !!familyId,
-    refetchInterval: 3000,
+    refetchInterval: 20000,
   });
 
   // web: useSleepSessions(familyId) — needed to resolve durationMin for 寝かしつけの傾向
@@ -266,7 +270,7 @@ export default function DashboardScreen(): React.ReactElement {
     queryKey: ['sleep-sessions', familyId],
     queryFn: () => apiGet<any[]>(`/api/sleep-sessions/${familyId}`),
     enabled: !!familyId,
-    refetchInterval: 5000,
+    refetchInterval: 20000,
   });
 
   // web: filter to the active child (keep logs w/o childId or matching child)
